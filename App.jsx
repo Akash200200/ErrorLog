@@ -402,6 +402,13 @@ export default function App() {
                   ✕
                 </button>
               </div>
+              <div style={{ marginTop: 14, fontSize: 11, color: 'var(--color-text-tertiary)', textAlign: 'center' }}>
+                Built by{' '}
+                <a href="https://www.linkedin.com/in/akash-biyani" target="_blank" rel="noopener noreferrer"
+                  style={{ color: 'var(--color-text-tertiary)', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }}>
+                  Akash Biyani
+                </a>
+              </div>
             </div>
           </>
         )}
