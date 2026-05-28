@@ -2,6 +2,8 @@
 
 A web tool for hardware designers to track, log, and resolve EDA/compiler errors across projects.
 
+> **Branch:** `master` — full Supabase backend (cloud storage + auth). For the self-contained localStorage-only version, see the [`localstorage`](../../tree/localstorage) branch.
+
 ---
 
 ## The Problem
@@ -21,23 +23,36 @@ Hardware designers writing RTL (VHDL, Verilog, SystemVerilog) face compiler and 
 - **Filter + Search** — by status (All / Open / Resolved), tag filters, free text search
 - **Deduplication alert** — warns you if you log an error code you've already solved before
 - **Custom tool/language lists** — add your own EDA tools and HDL languages on the fly
-- **localStorage persistence** — data survives refresh and browser restarts
+- **Cloud storage** — data synced to Postgres via Supabase; survives device switches
+- **User accounts** — email/password auth; each user sees only their own projects and errors
 - **Export / Import** — backup your data as JSON and restore it anytime
 
 ---
 
 ## How to Run Locally
 
-**Prerequisites:** Node.js 18+
+**Prerequisites:** Node.js 18+, a free [Supabase](https://supabase.com) account
 
 ```bash
 git clone https://github.com/Akash200200/ErrorLog.git
 cd ErrorLog
 npm install
+```
+
+Create a `.env` file in the project root:
+
+```
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+Then run:
+
+```bash
 npm run dev
 ```
 
-Then open **http://localhost:5173** in your browser.
+Open **http://localhost:5173** in your browser. Create an account on first visit.
 
 ---
 
@@ -45,8 +60,8 @@ Then open **http://localhost:5173** in your browser.
 
 - **Frontend:** React + Vite
 - **Styles:** Inline styles (no CSS framework)
-- **Storage:** localStorage (browser-based, no backend required)
-- **Planned:** Supabase backend for cloud sync and team sharing
+- **Backend:** Supabase — Postgres database + Row Level Security + email/password auth
+- **Hosting:** Vercel (coming soon)
 
 ---
 
@@ -56,9 +71,9 @@ Then open **http://localhost:5173** in your browser.
 - [x] Multi-project sidebar
 - [x] Detail panel with inline editing
 - [x] localStorage persistence + Export/Import
-- [ ] Supabase backend (cloud sync, user accounts)
+- [x] Supabase backend — cloud sync, user accounts, RLS
+- [ ] Vercel deployment (live public URL)
 - [ ] Team sharing — colleagues see each other's resolved errors and fixes
-- [ ] Vercel deployment (live public demo)
 
 ---
 
@@ -67,4 +82,3 @@ Then open **http://localhost:5173** in your browser.
 - Red accent `#E24B4A`, resolved green `#639922`
 - Sidebar collapses to a 44px icon rail
 - Modal always white (`#fff`) so it contrasts on any OS theme
-- Data model is ready for Supabase migration (projId, timestamps on every record)
