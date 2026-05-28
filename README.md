@@ -2,6 +2,8 @@
 
 A web tool for hardware designers to track, log, and resolve EDA/compiler errors across projects.
 
+> **Branch:** `localstorage` — self-contained version, no backend required. All data lives in your browser's localStorage. For the full version with cloud storage and user accounts, see the [`master`](../../tree/master) branch.
+
 ---
 
 ## The Problem
@@ -46,7 +48,6 @@ Then open **http://localhost:5173** in your browser.
 - **Frontend:** React + Vite
 - **Styles:** Inline styles (no CSS framework)
 - **Storage:** localStorage (browser-based, no backend required)
-- **Planned:** Supabase backend for cloud sync and team sharing
 
 ---
 
