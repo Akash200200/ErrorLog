@@ -2,7 +2,14 @@
 
 A web tool for hardware designers to track, log, and resolve EDA/compiler errors across projects.
 
-> **Branch:** `master` — full Supabase backend (cloud storage + auth). For the self-contained localStorage-only version, see the [`localstorage`](../../tree/localstorage) branch.
+**Live app: [log-your-error.vercel.app](https://log-your-error.vercel.app/)** — no install, open and sign up.
+
+> **Branch:** `master` — production branch, deployed to Vercel.
+> | Branch | What it is |
+> |---|---|
+> | [`master`](../../tree/master) | Live hosted app — just open the URL, no setup ← you are here |
+> | [`local-dev`](../../tree/local-dev) | Run locally with your own Supabase backend |
+> | [`localstorage`](../../tree/localstorage) | No backend, no account — data stays in your browser |
 
 ---
 
@@ -29,30 +36,11 @@ Hardware designers writing RTL (VHDL, Verilog, SystemVerilog) face compiler and 
 
 ---
 
-## How to Run Locally
+## Getting Started
 
-**Prerequisites:** Node.js 18+, a free [Supabase](https://supabase.com) account
+No installation needed. Visit **[log-your-error.vercel.app](https://log-your-error.vercel.app/)**, create a free account, and start logging errors.
 
-```bash
-git clone https://github.com/Akash200200/ErrorLog.git
-cd ErrorLog
-npm install
-```
-
-Create a `.env` file in the project root:
-
-```
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
-
-Then run:
-
-```bash
-npm run dev
-```
-
-Open **http://localhost:5173** in your browser. Create an account on first visit.
+To run it locally or self-host with your own database, see the [`local-dev`](../../tree/local-dev) branch.
 
 ---
 
@@ -61,7 +49,7 @@ Open **http://localhost:5173** in your browser. Create an account on first visit
 - **Frontend:** React + Vite
 - **Styles:** Inline styles (no CSS framework)
 - **Backend:** Supabase — Postgres database + Row Level Security + email/password auth
-- **Hosting:** Vercel (coming soon)
+- **Hosting:** Vercel
 
 ---
 
@@ -72,7 +60,7 @@ Open **http://localhost:5173** in your browser. Create an account on first visit
 - [x] Detail panel with inline editing
 - [x] localStorage persistence + Export/Import
 - [x] Supabase backend — cloud sync, user accounts, RLS
-- [ ] Vercel deployment (live public URL)
+- [x] Vercel deployment — live at [log-your-error.vercel.app](https://log-your-error.vercel.app/)
 - [ ] Team sharing — colleagues see each other's resolved errors and fixes
 
 ---
