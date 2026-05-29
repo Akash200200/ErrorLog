@@ -2,7 +2,14 @@
 
 A web tool for hardware designers to track, log, and resolve EDA/compiler errors across projects.
 
-> **Branch:** `localstorage` — self-contained version, no backend required. All data lives in your browser's localStorage. For the full version with cloud storage and user accounts, see the [`master`](../../tree/master) branch.
+> **Branch:** `localstorage` — self-contained, no backend, no account required. All data lives in your browser's localStorage. This is the original version of the app.
+> | Branch | What it is |
+> |---|---|
+> | [`master`](../../tree/master) | Live hosted app — just open the URL, no setup |
+> | [`local-dev`](../../tree/local-dev) | Run locally with your own Supabase backend |
+> | [`localstorage`](../../tree/localstorage) | No backend, no account — data stays in your browser ← you are here |
+
+The full version with cloud storage and user accounts is **live at [log-your-error.vercel.app](https://log-your-error.vercel.app/)**.
 
 ---
 
@@ -35,11 +42,12 @@ Hardware designers writing RTL (VHDL, Verilog, SystemVerilog) face compiler and 
 ```bash
 git clone https://github.com/Akash200200/ErrorLog.git
 cd ErrorLog
+git checkout localstorage
 npm install
 npm run dev
 ```
 
-Then open **http://localhost:5173** in your browser.
+Open **http://localhost:5173** in your browser. No account needed — start logging immediately.
 
 ---
 
@@ -57,9 +65,9 @@ Then open **http://localhost:5173** in your browser.
 - [x] Multi-project sidebar
 - [x] Detail panel with inline editing
 - [x] localStorage persistence + Export/Import
-- [ ] Supabase backend (cloud sync, user accounts)
+- [x] Supabase backend — done in `master` / `local-dev` branches
+- [x] Vercel deployment — live at [log-your-error.vercel.app](https://log-your-error.vercel.app/)
 - [ ] Team sharing — colleagues see each other's resolved errors and fixes
-- [ ] Vercel deployment (live public demo)
 
 ---
 
@@ -68,4 +76,3 @@ Then open **http://localhost:5173** in your browser.
 - Red accent `#E24B4A`, resolved green `#639922`
 - Sidebar collapses to a 44px icon rail
 - Modal always white (`#fff`) so it contrasts on any OS theme
-- Data model is ready for Supabase migration (projId, timestamps on every record)
