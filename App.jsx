@@ -140,6 +140,54 @@ function CustomSelect({ label, value, options, onChange, onAddOption, onDeleteOp
   );
 }
 
+// ── Reset Password Screen (shown after clicking email reset link) ──
+function ResetPasswordScreen({ onDone }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState({ type: '', text: '' });
+
+  async function handleReset(e) {
+    e.preventDefault();
+    if (password !== confirm) { setMsg({ type: 'error', text: 'Passwords do not match.' }); return; }
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) setMsg({ type: 'error', text: error.message });
+    else { setMsg({ type: 'success', text: 'Password updated! Signing you in...' }); setTimeout(onDone, 1200); }
+    setLoading(false);
+  }
+
+  const inp = { padding: '9px 11px', borderRadius: 7, border: '1px solid #d0d0d0', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', color: '#111', marginBottom: 12 };
+
+  return (
+    <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-tertiary, #f5f5f5)', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e0e0e0', width: '100%', maxWidth: 360, padding: '32px 28px 24px', boxShadow: '0 8px 40px rgba(0,0,0,0.1)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22 }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E24B4A', display: 'inline-block' }} />
+          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: '#111' }}>ErrorLog</span>
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#111', marginBottom: 4 }}>Set new password</div>
+        <div style={{ fontSize: 13, color: '#999', marginBottom: 22 }}>Choose a new password for your account.</div>
+        <form onSubmit={handleReset}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>New password</div>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} autoFocus style={inp} />
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Confirm password</div>
+          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required minLength={6} style={{ ...inp, marginBottom: 18 }} />
+          {msg.text && (
+            <div style={{ fontSize: 12, marginBottom: 14, padding: '8px 10px', borderRadius: 6, background: msg.type === 'error' ? '#FAECE7' : '#EAF3DE', color: msg.type === 'error' ? '#993C1D' : '#3B6D11' }}>
+              {msg.text}
+            </div>
+          )}
+          <button type="submit" disabled={loading}
+            style={{ width: '100%', padding: '10px', borderRadius: 8, background: '#E24B4A', color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: loading ? 0.7 : 1 }}>
+            {loading ? 'Updating...' : 'Update password'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Auth Screen ──
 function AuthScreen() {
   const [mode, setMode] = useState('login');
@@ -163,6 +211,18 @@ function AuthScreen() {
     setLoading(false);
   }
 
+  async function handleForgot(e) {
+    e.preventDefault();
+    setLoading(true);
+    setMsg({ type: '', text: '' });
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://log-your-error.vercel.app',
+    });
+    if (error) setMsg({ type: 'error', text: error.message });
+    else setMsg({ type: 'success', text: 'Check your email for a reset link.' });
+    setLoading(false);
+  }
+
   const inp = { padding: '9px 11px', borderRadius: 7, border: '1px solid #d0d0d0', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', color: '#111', marginBottom: 12 };
 
   return (
@@ -173,16 +233,27 @@ function AuthScreen() {
           <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: '#111' }}>ErrorLog</span>
         </div>
         <div style={{ fontSize: 20, fontWeight: 700, color: '#111', marginBottom: 4 }}>
-          {mode === 'login' ? 'Sign in' : 'Create account'}
+          {mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Reset password'}
         </div>
         <div style={{ fontSize: 13, color: '#999', marginBottom: 22 }}>
-          {mode === 'login' ? 'Welcome back.' : 'Start logging your EDA errors.'}
+          {mode === 'login' ? 'Welcome back.' : mode === 'signup' ? 'Start logging your EDA errors.' : 'Enter your email and we\'ll send a reset link.'}
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={mode === 'forgot' ? handleForgot : handleSubmit}>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</div>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus style={inp} />
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Password</div>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} style={{ ...inp, marginBottom: 18 }} />
+          {mode !== 'forgot' && <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Password</div>
+              {mode === 'login' && (
+                <button type="button" onClick={() => { setMode('forgot'); setMsg({ type: '', text: '' }); }}
+                  style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 12, padding: 0, fontFamily: 'inherit' }}>
+                  Forgot password?
+                </button>
+              )}
+            </div>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} style={{ ...inp, marginBottom: 18 }} />
+          </>}
+          {mode === 'forgot' && <div style={{ marginBottom: 18 }} />}
           {msg.text && (
             <div style={{ fontSize: 12, marginBottom: 14, padding: '8px 10px', borderRadius: 6, background: msg.type === 'error' ? '#FAECE7' : '#EAF3DE', color: msg.type === 'error' ? '#993C1D' : '#3B6D11' }}>
               {msg.text}
@@ -190,15 +261,24 @@ function AuthScreen() {
           )}
           <button type="submit" disabled={loading}
             style={{ width: '100%', padding: '10px', borderRadius: 8, background: '#E24B4A', color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: loading ? 0.7 : 1 }}>
-            {loading ? 'Please wait...' : mode === 'login' ? 'Sign in' : 'Create account'}
+            {loading ? 'Please wait...' : mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send reset link'}
           </button>
         </form>
         <div style={{ marginTop: 16, fontSize: 13, color: '#999', textAlign: 'center' }}>
-          {mode === 'login' ? "No account? " : 'Have an account? '}
-          <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setMsg({ type: '', text: '' }); }}
-            style={{ background: 'none', border: 'none', color: '#E24B4A', cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: 0, fontFamily: 'inherit' }}>
-            {mode === 'login' ? 'Sign up' : 'Sign in'}
-          </button>
+          {mode === 'forgot' ? (
+            <button onClick={() => { setMode('login'); setMsg({ type: '', text: '' }); }}
+              style={{ background: 'none', border: 'none', color: '#E24B4A', cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: 0, fontFamily: 'inherit' }}>
+              Back to sign in
+            </button>
+          ) : (
+            <>
+              {mode === 'login' ? "No account? " : 'Have an account? '}
+              <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setMsg({ type: '', text: '' }); }}
+                style={{ background: 'none', border: 'none', color: '#E24B4A', cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: 0, fontFamily: 'inherit' }}>
+                {mode === 'login' ? 'Sign up' : 'Sign in'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -209,6 +289,7 @@ export default function App() {
   // ── Auth ──
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isRecovery, setIsRecovery] = useState(false);
 
   // ── App state ──
   const [projects, setProjects] = useState([]);
@@ -244,8 +325,9 @@ export default function App() {
       setUser(session?.user ?? null);
       setAuthLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+      if (event === 'PASSWORD_RECOVERY') setIsRecovery(true);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -411,6 +493,7 @@ export default function App() {
     </div>
   );
   if (!user) return <AuthScreen />;
+  if (isRecovery) return <ResetPasswordScreen onDone={() => setIsRecovery(false)} />;
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'var(--font-sans, system-ui)', background: 'var(--color-background-tertiary)', color: 'var(--color-text-primary)', overflow: 'hidden' }}>
