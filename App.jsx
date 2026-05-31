@@ -931,8 +931,8 @@ export default function App() {
               </div>
             </div>
             <div style={{ marginTop: 'auto', padding: '14px 14px 18px', borderTop: '0.5px solid var(--color-border-tertiary)' }}>
-              <div onClick={() => setShowProfile(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 7, cursor: 'pointer', marginBottom: 10, background: 'var(--color-background-secondary)' }}
+              <button onClick={() => setShowProfile(true)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 7, cursor: 'pointer', marginBottom: 10, background: 'transparent', border: '0.5px solid var(--color-border-secondary)', fontFamily: 'inherit', textAlign: 'left' }}
                 title="My profile">
                 <div style={{ width: 26, height: 26, borderRadius: '50%', background: avatarColor(user.email), color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {(user.user_metadata?.display_name || user.email || '?')[0].toUpperCase()}
@@ -943,7 +943,8 @@ export default function App() {
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
                 </div>
-              </div>
+                <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', flexShrink: 0 }}>›</span>
+              </button>
               <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 4 }}>Total logged</div>
               <div style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.1 }}>{errors.length}</div>
               <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 2 }}>across {projects.length} projects</div>
