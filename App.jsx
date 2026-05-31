@@ -150,6 +150,115 @@ function CustomSelect({ label, value, options, onChange, onAddOption, onDeleteOp
   );
 }
 
+function avatarColor(str) {
+  const colors = ['#E24B4A', '#185FA5', '#1D9E75', '#BA7517', '#7F77DD', '#D4537E'];
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) & 0xffff;
+  return colors[h % colors.length];
+}
+
+function mostCommon(arr) {
+  const freq = {};
+  arr.forEach(v => { if (v) freq[v] = (freq[v] || 0) + 1; });
+  return Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+}
+
+// ── Profile Modal ──
+function ProfileModal({ user, errors, onClose }) {
+  const [displayName, setDisplayName] = useState(user.user_metadata?.display_name || '');
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const total = errors.length;
+  const resolved = errors.filter(e => e.resolved).length;
+  const rate = total > 0 ? Math.round(resolved / total * 100) : 0;
+  const topTool = mostCommon(errors.map(e => e.tool));
+  const topSev  = mostCommon(errors.map(e => e.severity));
+
+  const initial = (displayName || user.email || '?')[0].toUpperCase();
+  const color = avatarColor(user.email || '');
+  const memberSince = new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+
+  async function saveName() {
+    setSaving(true);
+    await supabase.auth.updateUser({ data: { display_name: draftName.trim() } });
+    setDisplayName(draftName.trim());
+    setEditingName(false);
+    setSaving(false);
+  }
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
+      <div style={{ background: 'var(--color-background-primary)', borderRadius: 16, border: '0.5px solid var(--color-border-secondary)', width: '100%', maxWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+
+        {/* Close */}
+        <div style={{ padding: '16px 18px 0', display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--color-text-tertiary)', lineHeight: 1, padding: '0 2px' }}>×</button>
+        </div>
+
+        {/* Avatar + identity */}
+        <div style={{ padding: '6px 24px 20px', textAlign: 'center', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: color, color: '#fff', fontSize: 24, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', letterSpacing: '-0.01em' }}>
+            {initial}
+          </div>
+          {editingName ? (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+              <input value={draftName} onChange={e => setDraftName(e.target.value)} autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditingName(false); }}
+                style={{ padding: '5px 9px', borderRadius: 6, border: '1px solid var(--color-border-primary)', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', fontSize: 14, fontFamily: 'inherit', outline: 'none', textAlign: 'center', width: 180 }} />
+              <button onClick={saveName} disabled={saving}
+                style={{ padding: '5px 10px', borderRadius: 6, background: '#E24B4A', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {saving ? '…' : 'Save'}
+              </button>
+            </div>
+          ) : (
+            <div onClick={() => { setDraftName(displayName); setEditingName(true); }} title="Click to edit"
+              style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4, cursor: 'text', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {displayName || <span style={{ color: 'var(--color-text-tertiary)', fontStyle: 'italic', fontSize: 14, fontWeight: 400 }}>Add display name</span>}
+              <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>✎</span>
+            </div>
+          )}
+          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 3 }}>{user.email}</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>Member since {memberSince}</div>
+        </div>
+
+        {/* Stats */}
+        <div style={{ padding: '16px 22px' }}>
+          <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Your stats</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+            {[{ val: total, label: 'Logged' }, { val: resolved, label: 'Resolved' }, { val: `${rate}%`, label: 'Rate' }].map(s => (
+              <div key={s.label} style={{ textAlign: 'center', padding: '10px 4px', borderRadius: 8, background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)' }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1, marginBottom: 3 }}>{s.val}</div>
+                <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[{ label: 'Top tool', val: topTool }, { label: 'Top severity', val: topSev }].map(s => (
+              <div key={s.label} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)' }}>
+                <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{s.val}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Team teaser */}
+        <div style={{ margin: '0 22px 22px', padding: '12px 14px', borderRadius: 8, border: '1px dashed var(--color-border-secondary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>👥</span>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 2 }}>Team sharing — coming soon</div>
+            <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>Invite teammates, share errors and resolutions across your group.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // ── Reset Password Screen (shown after clicking email reset link) ──
 function ResetPasswordScreen({ onDone }) {
   const [password, setPassword] = useState('');
@@ -548,6 +657,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [isRecovery, setIsRecovery] = useState(false);
   const [authMode, setAuthMode] = useState(null); // null=landing, 'login', 'signup'
+  const [showProfile, setShowProfile] = useState(false);
 
   // ── App state ──
   const [projects, setProjects] = useState([]);
@@ -789,6 +899,10 @@ export default function App() {
               title="New project"
               style={{ width: 22, height: 22, borderRadius: '50%', border: '1.5px dashed var(--color-border-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14, color: 'var(--color-text-tertiary)', marginTop: 2 }}>+</div>
             <div style={{ marginTop: 'auto', paddingBottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => setShowProfile(true)} title="My profile"
+                style={{ width: 26, height: 26, borderRadius: '50%', background: avatarColor(user.email), border: 'none', cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {(user.user_metadata?.display_name || user.email || '?')[0].toUpperCase()}
+              </button>
               <button onClick={exportData} title="Export backup" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--color-text-tertiary)', lineHeight: 1 }}>↑</button>
               <button onClick={clearAllData} title="Clear all data" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#c44', lineHeight: 1 }}>✕</button>
               <button onClick={logout} title="Sign out" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-tertiary)', lineHeight: 1 }}>⏻</button>
@@ -817,6 +931,19 @@ export default function App() {
               </div>
             </div>
             <div style={{ marginTop: 'auto', padding: '14px 14px 18px', borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+              <div onClick={() => setShowProfile(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 7, cursor: 'pointer', marginBottom: 10, background: 'var(--color-background-secondary)' }}
+                title="My profile">
+                <div style={{ width: 26, height: 26, borderRadius: '50%', background: avatarColor(user.email), color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {(user.user_metadata?.display_name || user.email || '?')[0].toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {user.user_metadata?.display_name || 'My Profile'}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
+                </div>
+              </div>
               <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 4 }}>Total logged</div>
               <div style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.1 }}>{errors.length}</div>
               <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 2 }}>across {projects.length} projects</div>
@@ -1125,6 +1252,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ── PROFILE MODAL ── */}
+      {showProfile && <ProfileModal user={user} errors={errors} onClose={() => setShowProfile(false)} />}
 
       {/* ── TOAST ── */}
       {toast && (
