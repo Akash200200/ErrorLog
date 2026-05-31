@@ -658,6 +658,7 @@ export default function App() {
   const [isRecovery, setIsRecovery] = useState(false);
   const [authMode, setAuthMode] = useState(null); // null=landing, 'login', 'signup'
   const [showProfile, setShowProfile] = useState(false);
+  const [verifyDismissed, setVerifyDismissed] = useState(false);
 
   // ── App state ──
   const [projects, setProjects] = useState([]);
@@ -800,6 +801,11 @@ export default function App() {
     setProjects([]); setErrors([]); setActiveProj(null); setDetailId(null);
   }
 
+  async function resendVerification() {
+    await supabase.auth.resend({ type: 'signup', email: user.email });
+    showToast('Verification email resent — check your inbox.');
+  }
+
   // ── Export backup ──
   function exportData() {
     const data = { projects, errors, toolList, langList };
@@ -866,8 +872,30 @@ export default function App() {
   }
   if (isRecovery) return <ResetPasswordScreen onDone={() => setIsRecovery(false)} />;
 
+  const unverified = user && !user.email_confirmed_at && !verifyDismissed;
+
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'var(--font-sans, system-ui)', background: 'var(--color-background-tertiary)', color: 'var(--color-text-primary)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'var(--font-sans, system-ui)', background: 'var(--color-background-tertiary)', color: 'var(--color-text-primary)', overflow: 'hidden' }}>
+
+      {/* ── VERIFICATION BANNER ── */}
+      {unverified && (
+        <div style={{ background: '#FAEEDA', borderBottom: '1px solid #e6c97a', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#854F0B', flexShrink: 0, zIndex: 60 }}>
+          <span>⚠</span>
+          <span style={{ flex: 1 }}>
+            Please verify your account — check your inbox for a confirmation email.{' '}
+            <button onClick={resendVerification}
+              style={{ background: 'none', border: 'none', color: '#854F0B', textDecoration: 'underline', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', fontWeight: 600, padding: 0 }}>
+              Resend email
+            </button>
+          </span>
+          <button onClick={() => setVerifyDismissed(true)}
+            style={{ background: 'none', border: 'none', color: '#BA7517', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 4px', fontFamily: 'inherit' }}>
+            ×
+          </button>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
       {/* ── SIDEBAR ── */}
       <div style={{ width: sidebarCollapsed ? 44 : 220, minWidth: sidebarCollapsed ? 44 : 220, background: 'var(--color-background-primary)', borderRight: '0.5px solid var(--color-border-tertiary)', display: 'flex', flexDirection: 'column', overflowY: 'auto', transition: 'width 0.2s, min-width 0.2s', overflow: 'hidden' }}>
@@ -1263,6 +1291,7 @@ export default function App() {
           {toast}
         </div>
       )}
+      </div>{/* end inner flex row */}
     </div>
   );
 }
