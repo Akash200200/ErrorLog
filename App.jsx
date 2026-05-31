@@ -45,6 +45,16 @@ function parseError(raw) {
   return { result, parseStatus: filled >= 3 ? 'ok' : filled >= 1 ? 'partial' : 'fail' };
 }
 
+function getPasswordChecks(pw) {
+  return [
+    { label: 'At least 8 characters',        ok: pw.length >= 8 },
+    { label: 'One uppercase letter (A–Z)',    ok: /[A-Z]/.test(pw) },
+    { label: 'One lowercase letter (a–z)',    ok: /[a-z]/.test(pw) },
+    { label: 'One number (0–9)',              ok: /[0-9]/.test(pw) },
+    { label: 'One special character (!@#…)',  ok: /[^A-Za-z0-9]/.test(pw) },
+  ];
+}
+
 const SEV_COLOR = {
   Error:    { bg: '#FAECE7', text: '#993C1D', border: '#E24B4A' },
   Warning:  { bg: '#FAEEDA', text: '#854F0B', border: '#BA7517' },
@@ -150,6 +160,7 @@ function ResetPasswordScreen({ onDone }) {
   async function handleReset(e) {
     e.preventDefault();
     if (password !== confirm) { setMsg({ type: 'error', text: 'Passwords do not match.' }); return; }
+    if (!getPasswordChecks(password).every(c => c.ok)) { setMsg({ type: 'error', text: 'Password does not meet all requirements.' }); return; }
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
     if (error) setMsg({ type: 'error', text: error.message });
@@ -157,7 +168,8 @@ function ResetPasswordScreen({ onDone }) {
     setLoading(false);
   }
 
-  const inp = { padding: '9px 11px', borderRadius: 7, border: '1px solid #d0d0d0', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', color: '#111', marginBottom: 12 };
+  const inp = { padding: '9px 11px', borderRadius: 7, border: '1px solid #d0d0d0', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', color: '#111', marginBottom: 8 };
+  const pwChecks = password ? getPasswordChecks(password) : null;
 
   return (
     <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-tertiary, #f5f5f5)', fontFamily: 'system-ui, sans-serif' }}>
@@ -170,9 +182,18 @@ function ResetPasswordScreen({ onDone }) {
         <div style={{ fontSize: 13, color: '#999', marginBottom: 22 }}>Choose a new password for your account.</div>
         <form onSubmit={handleReset}>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>New password</div>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} autoFocus style={inp} />
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} autoFocus style={inp} />
+          {pwChecks && (
+            <div style={{ marginBottom: 12 }}>
+              {pwChecks.map(c => (
+                <div key={c.label} style={{ fontSize: 11, color: c.ok ? '#3B6D11' : '#aaa', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                  <span style={{ fontSize: 10 }}>{c.ok ? '✓' : '○'}</span> {c.label}
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Confirm password</div>
-          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required minLength={6} style={{ ...inp, marginBottom: 18 }} />
+          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required minLength={8} style={{ ...inp, marginBottom: 18 }} />
           {msg.text && (
             <div style={{ fontSize: 12, marginBottom: 14, padding: '8px 10px', borderRadius: 6, background: msg.type === 'error' ? '#FAECE7' : '#EAF3DE', color: msg.type === 'error' ? '#993C1D' : '#3B6D11' }}>
               {msg.text}
@@ -189,8 +210,8 @@ function ResetPasswordScreen({ onDone }) {
 }
 
 // ── Auth Screen ──
-function AuthScreen() {
-  const [mode, setMode] = useState('login');
+function AuthScreen({ initialMode = 'login', onBack }) {
+  const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -204,6 +225,11 @@ function AuthScreen() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setMsg({ type: 'error', text: error.message });
     } else {
+      if (!getPasswordChecks(password).every(c => c.ok)) {
+        setMsg({ type: 'error', text: 'Password does not meet all requirements.' });
+        setLoading(false);
+        return;
+      }
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) setMsg({ type: 'error', text: error.message });
       else setMsg({ type: 'success', text: 'Check your email to confirm your account, then sign in.' });
@@ -224,6 +250,7 @@ function AuthScreen() {
   }
 
   const inp = { padding: '9px 11px', borderRadius: 7, border: '1px solid #d0d0d0', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', color: '#111', marginBottom: 12 };
+  const pwChecks = mode === 'signup' && password ? getPasswordChecks(password) : null;
 
   return (
     <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-tertiary, #f5f5f5)', fontFamily: 'system-ui, sans-serif' }}>
@@ -251,7 +278,16 @@ function AuthScreen() {
                 </button>
               )}
             </div>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} style={{ ...inp, marginBottom: 18 }} />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} style={{ ...inp, marginBottom: pwChecks ? 8 : 18 }} />
+            {pwChecks && (
+              <div style={{ marginBottom: 14 }}>
+                {pwChecks.map(c => (
+                  <div key={c.label} style={{ fontSize: 11, color: c.ok ? '#3B6D11' : '#aaa', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                    <span style={{ fontSize: 10 }}>{c.ok ? '✓' : '○'}</span> {c.label}
+                  </div>
+                ))}
+              </div>
+            )}
           </>}
           {mode === 'forgot' && <div style={{ marginBottom: 18 }} />}
           {msg.text && (
@@ -280,6 +316,227 @@ function AuthScreen() {
             </>
           )}
         </div>
+        {onBack && (
+          <div style={{ marginTop: 12, textAlign: 'center' }}>
+            <button onClick={onBack}
+              style={{ background: 'none', border: 'none', color: '#bbb', cursor: 'pointer', fontSize: 12, padding: 0, fontFamily: 'inherit' }}>
+              ← Back to home
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Landing Page ──
+function LandingPage({ onLogin, onSignUp }) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [typedLen, setTypedLen] = useState(0);
+  const [parsedVisible, setParsedVisible] = useState(false);
+  const [fieldCount, setFieldCount] = useState(0);
+  const [cardVisible, setCardVisible] = useState(false);
+
+  const SAMPLE = "ERROR: [NSTD-1] I/O Standard not set\nfor port 'clk_in' — top_module.sv line 42";
+  const FIELDS = [
+    { label: 'Code',     value: 'NSTD-1',       mono: true },
+    { label: 'File',     value: 'top_module.sv', mono: true },
+    { label: 'Tool',     value: 'Vivado',        mono: false },
+    { label: 'Severity', value: 'Error',         mono: false },
+  ];
+
+  useEffect(() => {
+    const ids = [];
+    let alive = true;
+    function at(fn, ms) { const id = setTimeout(() => { if (alive) fn(); }, ms); ids.push(id); }
+
+    function cycle() {
+      setModalOpen(false); setTypedLen(0); setParsedVisible(false); setFieldCount(0); setCardVisible(false);
+      let t = 900;
+      at(() => setModalOpen(true), t); t += 520;
+      for (let i = 1; i <= SAMPLE.length; i++) { const n = i; at(() => setTypedLen(n), t + n * 24); }
+      t += SAMPLE.length * 24 + 360;
+      at(() => setParsedVisible(true), t); t += 240;
+      for (let i = 1; i <= 4; i++) { const n = i; at(() => setFieldCount(n), t + n * 230); }
+      t += 4 * 230 + 720;
+      at(() => setModalOpen(false), t);
+      at(() => { setParsedVisible(false); setTypedLen(0); setFieldCount(0); }, t + 80);
+      t += 440;
+      at(() => setCardVisible(true), t); t += 3200;
+      at(() => { setCardVisible(false); at(cycle, 500); }, t);
+    }
+
+    at(cycle, 400);
+    return () => { alive = false; ids.forEach(clearTimeout); };
+  }, []);
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f9f9f9', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column' }}>
+      <style>{`
+        @keyframes lp-slide-in  { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes lp-fade-in   { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes lp-blink     { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        @keyframes lp-modal-in  { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+      `}</style>
+
+      {/* Nav */}
+      <nav style={{ padding: '15px 36px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid #ebebeb', background: '#fff' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E24B4A', display: 'inline-block' }} />
+          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', color: '#111' }}>ErrorLog</span>
+        </div>
+        <button onClick={onLogin} style={{ padding: '7px 16px', borderRadius: 7, border: '1px solid #d8d8d8', background: '#fff', color: '#333', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>
+          Sign in
+        </button>
+      </nav>
+
+      {/* Hero */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '52px 36px 68px', gap: 60, flexWrap: 'wrap' }}>
+
+        {/* Left: copy */}
+        <div style={{ flex: '0 0 390px', maxWidth: 430 }}>
+          <h1 style={{ fontSize: 42, fontWeight: 800, lineHeight: 1.1, color: '#111', letterSpacing: '-0.03em', margin: '0 0 16px' }}>
+            Log your EDA errors.<br />
+            <span style={{ color: '#E24B4A' }}>Learn from them.</span>
+          </h1>
+          <p style={{ fontSize: 15, color: '#555', lineHeight: 1.65, margin: '0 0 30px', maxWidth: 360 }}>
+            Paste any compiler output. ErrorLog auto-parses the error code, file, severity, and tool — and tracks it across your RTL projects.
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={onSignUp}
+              style={{ padding: '11px 22px', borderRadius: 9, background: '#E24B4A', color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '-0.01em' }}>
+              Sign up — free
+            </button>
+            <button onClick={onLogin}
+              style={{ padding: '11px 18px', borderRadius: 9, border: '1px solid #d0d0d0', background: '#fff', color: '#444', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Sign in
+            </button>
+          </div>
+        </div>
+
+        {/* Right: animated demo window */}
+        <div style={{ flex: '1 1 460px', maxWidth: 520 }}>
+          <div style={{ borderRadius: 12, border: '1px solid #e0e0e0', boxShadow: '0 16px 56px rgba(0,0,0,0.11)', overflow: 'hidden', background: '#fff' }}>
+            {/* Window chrome */}
+            <div style={{ height: 34, background: '#f5f5f5', borderBottom: '0.5px solid #e8e8e8', display: 'flex', alignItems: 'center', padding: '0 14px', gap: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57', display: 'inline-block' }} />
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e', display: 'inline-block' }} />
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840', display: 'inline-block' }} />
+              <div style={{ flex: 1, textAlign: 'center', fontSize: 11, color: '#999', marginRight: 36 }}>ErrorLog — AXI Bridge</div>
+            </div>
+
+            {/* App body (position: relative so modal can overlay) */}
+            <div style={{ display: 'flex', height: 360, position: 'relative' }}>
+
+              {/* Sidebar */}
+              <div style={{ width: 148, background: '#fafafa', borderRight: '0.5px solid #ededed', padding: '10px 6px', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+                <div style={{ fontSize: 9, color: '#c0c0c0', textTransform: 'uppercase', letterSpacing: '0.12em', padding: '2px 8px 5px' }}>Projects</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 6, background: '#eef0f2', marginBottom: 2 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#185FA5', minWidth: 6 }} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#111', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>AXI Bridge</span>
+                  <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 8, background: '#FAECE7', color: '#993C1D', fontWeight: 700 }}>{cardVisible ? 2 : 1}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 6 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#1D9E75', minWidth: 6 }} />
+                  <span style={{ fontSize: 11, color: '#888', flex: 1 }}>SoC Top</span>
+                  <span style={{ fontSize: 10, color: '#639922' }}>✓</span>
+                </div>
+                <div style={{ marginTop: 'auto', padding: '8px 8px 6px', borderTop: '0.5px solid #ededed' }}>
+                  <div style={{ fontSize: 10, color: '#c0c0c0', marginBottom: 2 }}>Total logged</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#111', lineHeight: 1 }}>{cardVisible ? 3 : 2}</div>
+                  <div style={{ fontSize: 10, color: '#c0c0c0', marginTop: 1 }}>across 2 projects</div>
+                </div>
+              </div>
+
+              {/* Main area */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                {/* Topbar */}
+                <div style={{ background: '#fff', borderBottom: '0.5px solid #ededed', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#185FA5', flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#111', flex: 1 }}>AXI Bridge</span>
+                  <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, background: '#FAECE7', color: '#993C1D', fontWeight: 600, flexShrink: 0 }}>{cardVisible ? 2 : 1} open</span>
+                  <div style={{ padding: '4px 9px', borderRadius: 5, background: '#E24B4A', color: '#fff', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>+ Log Error</div>
+                </div>
+
+                {/* Error list */}
+                <div style={{ flex: 1, padding: 10, display: 'flex', flexDirection: 'column', gap: 7, overflowY: 'hidden' }}>
+                  {cardVisible && (
+                    <div style={{ background: '#fff', border: '0.5px solid #e8e8e8', borderLeft: '2.5px solid #E24B4A', borderRadius: 7, padding: '9px 11px', animation: 'lp-slide-in 0.38s ease' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 3, fontFamily: 'monospace', background: '#FAECE7', color: '#993C1D' }}>NSTD-1</span>
+                        <span style={{ fontSize: 11, fontWeight: 500, color: '#111', flex: 1, lineHeight: 1.3 }}>I/O Standard not set for port 'clk_in'</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 5, fontSize: 10, color: '#999' }}>
+                        <span style={{ padding: '1px 5px', borderRadius: 3, background: '#f0f0f0', fontWeight: 500 }}>Vivado</span>
+                        <span>📄 top_module.sv:42</span>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ background: '#fff', border: '0.5px solid #e8e8e8', borderLeft: '2.5px solid #639922', borderRadius: 7, padding: '9px 11px', opacity: 0.82 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 3, fontFamily: 'monospace', background: '#EAF3DE', color: '#3B6D11' }}>CDC-004</span>
+                      <span style={{ fontSize: 11, fontWeight: 500, color: '#111', flex: 1, lineHeight: 1.3 }}>Missing synchronizer on async reset</span>
+                      <span style={{ color: '#639922', fontSize: 12, flexShrink: 0 }}>✓</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 5, fontSize: 10, color: '#999' }}>
+                      <span style={{ padding: '1px 5px', borderRadius: 3, background: '#f0f0f0', fontWeight: 500 }}>Synopsys DC</span>
+                      <span>📄 reset_sync.sv:17</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal overlay — absolutely positioned over the whole app body */}
+              {modalOpen && (
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.36)', backdropFilter: 'blur(1.5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+                  <div style={{ background: '#fff', borderRadius: 9, border: '1.5px solid #d0d0d0', width: '88%', maxWidth: 310, boxShadow: '0 10px 36px rgba(0,0,0,0.18)', animation: 'lp-modal-in 0.28s ease', overflow: 'hidden' }}>
+                    <div style={{ padding: '11px 13px 8px', borderBottom: '1px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>Log new error</span>
+                      <span style={{ fontSize: 16, color: '#ccc' }}>×</span>
+                    </div>
+                    <div style={{ padding: '11px 13px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#444', marginBottom: 5 }}>Paste error output</div>
+                      <div style={{ width: '100%', minHeight: 60, padding: '7px 9px', borderRadius: 5, border: '1px solid #d0d0d0', background: '#f7f7f7', fontSize: 10, fontFamily: 'monospace', color: '#222', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all', boxSizing: 'border-box' }}>
+                        {SAMPLE.slice(0, typedLen)}
+                        <span style={{ display: 'inline-block', width: 1, height: '1em', background: '#444', marginLeft: 0.5, verticalAlign: 'text-bottom', animation: 'lp-blink 1s step-end infinite' }} />
+                      </div>
+                      {parsedVisible && (
+                        <div style={{ marginTop: 7, padding: '5px 9px', borderRadius: 5, background: '#EAF3DE', border: '1px solid #a8d87a', fontSize: 10, color: '#3B6D11', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          ✓ Parsed successfully — review below
+                        </div>
+                      )}
+                      {fieldCount > 0 && (
+                        <div style={{ marginTop: 8, background: '#f3f3f3', borderRadius: 6, padding: '8px 10px', border: '1px solid #ddd' }}>
+                          {FIELDS.slice(0, fieldCount).map((f, i) => (
+                            <div key={f.label} style={{ display: 'flex', gap: 8, marginBottom: i < fieldCount - 1 ? 5 : 0, alignItems: 'center', animation: 'lp-fade-in 0.26s ease' }}>
+                              <span style={{ fontSize: 9, color: '#999', width: 50, minWidth: 50, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{f.label}</span>
+                              <span style={{ fontSize: 10, fontFamily: f.mono ? 'monospace' : 'system-ui', color: '#111', background: '#fff', padding: '2px 5px', borderRadius: 3, border: '1px solid #e0e0e0' }}>{f.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {fieldCount >= 4 && (
+                      <div style={{ padding: '8px 13px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: 7 }}>
+                        <div style={{ padding: '5px 11px', borderRadius: 5, border: '1px solid #d0d0d0', color: '#666', fontSize: 11 }}>Cancel</div>
+                        <div style={{ padding: '5px 11px', borderRadius: 5, background: '#E24B4A', color: '#fff', fontSize: 11, fontWeight: 700 }}>Save error</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ textAlign: 'center', padding: '13px 24px', fontSize: 11, color: '#c0c0c0', borderTop: '0.5px solid #ebebeb', background: '#fff' }}>
+        Built by{' '}
+        <a href="https://www.linkedin.com/in/akash-biyani" target="_blank" rel="noopener noreferrer"
+          style={{ color: '#c0c0c0', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2 }}>
+          Akash Biyani
+        </a>
       </div>
     </div>
   );
@@ -290,6 +547,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isRecovery, setIsRecovery] = useState(false);
+  const [authMode, setAuthMode] = useState(null); // null=landing, 'login', 'signup'
 
   // ── App state ──
   const [projects, setProjects] = useState([]);
@@ -492,7 +750,10 @@ export default function App() {
       Loading...
     </div>
   );
-  if (!user) return <AuthScreen />;
+  if (!user) {
+    if (authMode === null) return <LandingPage onLogin={() => setAuthMode('login')} onSignUp={() => setAuthMode('signup')} />;
+    return <AuthScreen initialMode={authMode} onBack={() => setAuthMode(null)} />;
+  }
   if (isRecovery) return <ResetPasswordScreen onDone={() => setIsRecovery(false)} />;
 
   return (
