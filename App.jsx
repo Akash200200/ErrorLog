@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import * as XLSX from 'xlsx';
 import { supabase } from './src/supabase.js';
 
 const DEFAULT_TOOLS = ['Vivado', 'Synopsys DC', 'Cadence Innovus', 'ModelSim', 'VCS', 'Quartus', 'Design Compiler', 'Genus', 'Xcelium', 'Other'];
@@ -190,16 +191,16 @@ function ProfileModal({ user, errors, onClose }) {
 
   return (
     <div onClick={e => e.target === e.currentTarget && onClose()}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
-      <div style={{ background: 'var(--color-background-primary)', borderRadius: 16, border: '0.5px solid var(--color-border-secondary)', width: '100%', maxWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
+      <div style={{ background: '#ffffff', borderRadius: 14, border: '1.5px solid #e0e0e0', width: '100%', maxWidth: 360, boxShadow: '0 24px 64px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
 
         {/* Close */}
         <div style={{ padding: '16px 18px 0', display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--color-text-tertiary)', lineHeight: 1, padding: '0 2px' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#bbb', lineHeight: 1, padding: '0 2px' }}>×</button>
         </div>
 
         {/* Avatar + identity */}
-        <div style={{ padding: '6px 24px 20px', textAlign: 'center', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+        <div style={{ padding: '6px 24px 20px', textAlign: 'center', borderBottom: '0.5px solid #ebebeb' }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: color, color: '#fff', fontSize: 24, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', letterSpacing: '-0.01em' }}>
             {initial}
           </div>
@@ -207,7 +208,7 @@ function ProfileModal({ user, errors, onClose }) {
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
               <input value={draftName} onChange={e => setDraftName(e.target.value)} autoFocus
                 onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditingName(false); }}
-                style={{ padding: '5px 9px', borderRadius: 6, border: '1px solid var(--color-border-primary)', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', fontSize: 14, fontFamily: 'inherit', outline: 'none', textAlign: 'center', width: 180 }} />
+                style={{ padding: '5px 9px', borderRadius: 6, border: '1px solid #d0d0d0', background: '#f7f7f7', color: '#111', fontSize: 14, fontFamily: 'inherit', outline: 'none', textAlign: 'center', width: 180 }} />
               <button onClick={saveName} disabled={saving}
                 style={{ padding: '5px 10px', borderRadius: 6, background: '#E24B4A', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {saving ? '…' : 'Save'}
@@ -215,42 +216,42 @@ function ProfileModal({ user, errors, onClose }) {
             </div>
           ) : (
             <div onClick={() => { setDraftName(displayName); setEditingName(true); }} title="Click to edit"
-              style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4, cursor: 'text', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {displayName || <span style={{ color: 'var(--color-text-tertiary)', fontStyle: 'italic', fontSize: 14, fontWeight: 400 }}>Add display name</span>}
-              <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>✎</span>
+              style={{ fontSize: 17, fontWeight: 700, color: '#111', marginBottom: 4, cursor: 'text', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {displayName || <span style={{ color: '#bbb', fontStyle: 'italic', fontSize: 14, fontWeight: 400 }}>Add display name</span>}
+              <span style={{ fontSize: 11, color: '#bbb' }}>✎</span>
             </div>
           )}
-          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 3 }}>{user.email}</div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>Member since {memberSince}</div>
+          <div style={{ fontSize: 13, color: '#666', marginBottom: 3 }}>{user.email}</div>
+          <div style={{ fontSize: 11, color: '#999' }}>Member since {memberSince}</div>
         </div>
 
         {/* Stats */}
         <div style={{ padding: '16px 22px' }}>
-          <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Your stats</div>
+          <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Your stats</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
             {[{ val: total, label: 'Logged' }, { val: resolved, label: 'Resolved' }, { val: `${rate}%`, label: 'Rate' }].map(s => (
-              <div key={s.label} style={{ textAlign: 'center', padding: '10px 4px', borderRadius: 8, background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)' }}>
-                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1, marginBottom: 3 }}>{s.val}</div>
-                <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+              <div key={s.label} style={{ textAlign: 'center', padding: '10px 4px', borderRadius: 8, background: '#f5f5f5', border: '0.5px solid #e8e8e8' }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#111', lineHeight: 1, marginBottom: 3 }}>{s.val}</div>
+                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
               </div>
             ))}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {[{ label: 'Top tool', val: topTool }, { label: 'Top severity', val: topSev }].map(s => (
-              <div key={s.label} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)' }}>
-                <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{s.val}</div>
+              <div key={s.label} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: '#f5f5f5', border: '0.5px solid #e8e8e8' }}>
+                <div style={{ fontSize: 10, color: '#999', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{s.val}</div>
               </div>
             ))}
           </div>
         </div>
 
         {/* Team teaser */}
-        <div style={{ margin: '0 22px 22px', padding: '12px 14px', borderRadius: 8, border: '1px dashed var(--color-border-secondary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ margin: '0 22px 22px', padding: '12px 14px', borderRadius: 8, border: '1px dashed #e0e0e0', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18, flexShrink: 0 }}>👥</span>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 2 }}>Team sharing — coming soon</div>
-            <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>Invite teammates, share errors and resolutions across your group.</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#111', marginBottom: 2 }}>Team sharing — coming soon</div>
+            <div style={{ fontSize: 11, color: '#999', lineHeight: 1.4 }}>Invite teammates, share errors and resolutions across your group.</div>
           </div>
         </div>
 
@@ -321,6 +322,8 @@ function ResetPasswordScreen({ onDone }) {
 // ── Auth Screen ──
 function AuthScreen({ initialMode = 'login', onBack }) {
   const [mode, setMode] = useState(initialMode);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -339,7 +342,8 @@ function AuthScreen({ initialMode = 'login', onBack }) {
         setLoading(false);
         return;
       }
-      const { error } = await supabase.auth.signUp({ email, password });
+      const displayName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ');
+      const { error } = await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName, first_name: firstName.trim(), last_name: lastName.trim() } } });
       if (error) setMsg({ type: 'error', text: error.message });
       else setMsg({ type: 'success', text: 'Check your email to confirm your account, then sign in.' });
     }
@@ -375,8 +379,20 @@ function AuthScreen({ initialMode = 'login', onBack }) {
           {mode === 'login' ? 'Welcome back.' : mode === 'signup' ? 'Start logging your EDA errors.' : 'Enter your email and we\'ll send a reset link.'}
         </div>
         <form onSubmit={mode === 'forgot' ? handleForgot : handleSubmit}>
+          {mode === 'signup' && (
+            <div style={{ display: 'flex', gap: 10, marginBottom: 0 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>First name</div>
+                <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} required autoFocus placeholder="Jane" style={inp} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last name</div>
+                <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} required placeholder="Smith" style={inp} />
+              </div>
+            </div>
+          )}
           <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</div>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus style={inp} />
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus={mode !== 'signup'} style={inp} />
           {mode !== 'forgot' && <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Password</div>
@@ -433,6 +449,117 @@ function AuthScreen({ initialMode = 'login', onBack }) {
             </button>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Export Modal ──
+function ExportModal({ projects, errors, onClose }) {
+  const [projectId, setProjectId] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [exporting, setExporting] = useState(false);
+
+  const filtered = errors
+    .filter(e => projectId === 'all' || e.projId === projectId)
+    .filter(e => !dateFrom || e.date >= dateFrom)
+    .filter(e => !dateTo || e.date <= dateTo);
+
+  function doExport() {
+    if (filtered.length === 0) return;
+    setExporting(true);
+    const includeProject = projectId === 'all';
+    const headers = [
+      ...(includeProject ? ['Project'] : []),
+      'Error Code', 'Severity', 'Tool', 'Language', 'File', 'Line',
+      'Date', 'Status', 'Description', 'Notes', 'Tags', 'Fix Summary', 'Fix Details',
+    ];
+    const rows = filtered.map(e => {
+      const proj = projects.find(p => p.id === e.projId);
+      return [
+        ...(includeProject ? [proj?.name || ''] : []),
+        e.code || '', e.severity || '', e.tool || '', e.lang || '',
+        e.file || '', e.line || '', e.date || '',
+        e.resolved ? 'Resolved' : 'Open',
+        e.description || '', e.notes || '',
+        (e.tags || []).join(', '),
+        e.resolutionTitle || '', e.resolution || '',
+      ];
+    });
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [
+      ...(includeProject ? [{ wch: 20 }] : []),
+      { wch: 12 }, { wch: 10 }, { wch: 18 }, { wch: 14 }, { wch: 22 }, { wch: 6 },
+      { wch: 12 }, { wch: 10 }, { wch: 50 }, { wch: 30 }, { wch: 20 }, { wch: 30 }, { wch: 50 },
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, 'Errors');
+    const projName = projectId === 'all'
+      ? 'all-projects'
+      : (projects.find(p => p.id === projectId)?.name?.replace(/\s+/g, '-').toLowerCase() || 'export');
+    XLSX.writeFile(wb, `errorlog-${projName}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setExporting(false);
+    onClose();
+  }
+
+  const inp = { padding: '9px 11px', borderRadius: 7, border: '1px solid #d0d0d0', fontSize: 13, fontFamily: 'inherit', outline: 'none', background: '#f7f7f7', color: '#111', boxSizing: 'border-box' };
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
+      <div style={{ background: '#ffffff', borderRadius: 14, border: '1.5px solid #e0e0e0', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+
+        <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #e8e8e8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#111', letterSpacing: '-0.02em' }}>Export errors</div>
+            <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>Downloads as an Excel (.xlsx) spreadsheet</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#bbb', lineHeight: 1, padding: '0 4px' }}>×</button>
+        </div>
+
+        <div style={{ padding: '22px 24px' }}>
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</div>
+            <select value={projectId} onChange={e => setProjectId(e.target.value)} style={{ ...inp, width: '100%', cursor: 'pointer' }}>
+              <option value="all">All projects</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date range</div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...inp, flex: 1 }} />
+              <span style={{ fontSize: 12, color: '#bbb', flexShrink: 0 }}>→</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...inp, flex: 1 }} />
+            </div>
+            {(dateFrom || dateTo) && (
+              <button onClick={() => { setDateFrom(''); setDateTo(''); }}
+                style={{ marginTop: 6, background: 'none', border: 'none', color: '#999', fontSize: 11, cursor: 'pointer', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}>
+                Clear dates
+              </button>
+            )}
+          </div>
+
+          <div style={{ padding: '11px 14px', borderRadius: 8, background: filtered.length > 0 ? '#EAF3DE' : '#f5f5f5', border: `1px solid ${filtered.length > 0 ? '#a8d87a' : '#e8e8e8'}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 15 }}>{filtered.length > 0 ? '✓' : '○'}</span>
+            <span style={{ fontSize: 13, color: filtered.length > 0 ? '#3B6D11' : '#999', fontWeight: 500 }}>
+              {filtered.length} error{filtered.length !== 1 ? 's' : ''} will be exported
+            </span>
+          </div>
+        </div>
+
+        <div style={{ padding: '14px 24px 20px', borderTop: '1px solid #e8e8e8', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button onClick={onClose}
+            style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #d0d0d0', background: 'transparent', color: '#555', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>
+            Cancel
+          </button>
+          <button onClick={doExport} disabled={filtered.length === 0 || exporting}
+            style={{ padding: '9px 20px', borderRadius: 8, background: filtered.length === 0 ? '#ddd' : '#E24B4A', color: filtered.length === 0 ? '#aaa' : '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: filtered.length === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.75 : 1 }}>
+            {exporting ? 'Exporting…' : '↓ Export .xlsx'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -658,6 +785,7 @@ export default function App() {
   const [isRecovery, setIsRecovery] = useState(false);
   const [authMode, setAuthMode] = useState(null); // null=landing, 'login', 'signup'
   const [showProfile, setShowProfile] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [verifyDismissed, setVerifyDismissed] = useState(false);
 
   // ── App state ──
@@ -877,6 +1005,8 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'var(--font-sans, system-ui)', background: 'var(--color-background-tertiary)', color: 'var(--color-text-primary)', overflow: 'hidden' }}>
 
+      <style>{`.sl-h{transition:background 0.12s ease;border-radius:7px}.sl-h:hover{background:rgba(0,0,0,0.048)!important}`}</style>
+
       {/* ── VERIFICATION BANNER ── */}
       {unverified && (
         <div style={{ background: '#FAEEDA', borderBottom: '1px solid #e6c97a', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#854F0B', flexShrink: 0, zIndex: 60 }}>
@@ -900,50 +1030,69 @@ export default function App() {
       {/* ── SIDEBAR ── */}
       <div style={{ width: sidebarCollapsed ? 44 : 220, minWidth: sidebarCollapsed ? 44 : 220, background: 'var(--color-background-primary)', borderRight: '0.5px solid var(--color-border-tertiary)', display: 'flex', flexDirection: 'column', overflowY: 'auto', transition: 'width 0.2s, min-width 0.2s', overflow: 'hidden' }}>
 
-        {/* Logo + collapse */}
-        <div style={{ padding: sidebarCollapsed ? '16px 0' : '18px 16px 10px', display: 'flex', alignItems: 'center', gap: 8, justifyContent: sidebarCollapsed ? 'center' : 'space-between' }}>
-          {!sidebarCollapsed && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E24B4A', display: 'inline-block' }} />
-              <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.02em' }}>ErrorLog</span>
-            </div>
-          )}
-          <button onClick={() => setSidebarCollapsed(v => !v)}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--color-text-tertiary)', padding: '2px 4px', borderRadius: 5, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {sidebarCollapsed ? '▶' : '◀'}
-          </button>
-        </div>
-
-        {/* Collapsed */}
         {sidebarCollapsed ? (
-          <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flex: 1 }}>
-            {projects.map(p => (
-              <div key={p.id} onClick={() => { setActiveProj(p.id); setDetailId(null); setFilter('all'); setSearch(''); }}
-                title={p.name}
-                style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, cursor: 'pointer', border: p.id === activeProj ? '2px solid var(--color-text-primary)' : '2px solid transparent', boxSizing: 'border-box' }} />
-            ))}
-            <div onClick={() => { setSidebarCollapsed(false); setShowNewProj(true); setNewProjName(''); setNewProjColor(PROJ_COLORS[0]); }}
-              title="New project"
-              style={{ width: 22, height: 22, borderRadius: '50%', border: '1.5px dashed var(--color-border-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14, color: 'var(--color-text-tertiary)', marginTop: 2 }}>+</div>
-            <div style={{ marginTop: 'auto', paddingBottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          /* ── COLLAPSED ── */
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+            <div style={{ padding: '14px 0 12px', borderBottom: '0.5px solid var(--color-border-tertiary)', width: '100%', display: 'flex', justifyContent: 'center' }}>
+              <button onClick={() => setSidebarCollapsed(false)} title="Expand sidebar"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', padding: '4px 6px', borderRadius: 5, display: 'flex', flexDirection: 'column', gap: 3.5, alignItems: 'center' }}>
+                <span style={{ display: 'block', width: 14, height: 1.8, borderRadius: 1, background: 'currentColor' }} />
+                <span style={{ display: 'block', width: 14, height: 1.8, borderRadius: 1, background: 'currentColor' }} />
+                <span style={{ display: 'block', width: 14, height: 1.8, borderRadius: 1, background: 'currentColor' }} />
+              </button>
+            </div>
+            <div style={{ padding: '10px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flex: 1 }}>
+              {projects.map(p => (
+                <div key={p.id} onClick={() => { setActiveProj(p.id); setDetailId(null); setFilter('all'); setSearch(''); }}
+                  title={p.name}
+                  style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, cursor: 'pointer', border: p.id === activeProj ? '2px solid var(--color-text-primary)' : '2px solid transparent', boxSizing: 'border-box' }} />
+              ))}
+              <div onClick={() => { setSidebarCollapsed(false); setShowNewProj(true); setNewProjName(''); setNewProjColor(PROJ_COLORS[0]); }}
+                title="New project"
+                style={{ width: 22, height: 22, borderRadius: '50%', border: '1.5px dashed var(--color-border-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14, color: 'var(--color-text-tertiary)', marginTop: 2 }}>+</div>
+            </div>
+            <div style={{ paddingBottom: 14, paddingTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, borderTop: '0.5px solid var(--color-border-tertiary)', width: '100%' }}>
+              <button onClick={() => setShowExport(true)} title="Export to Excel"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--color-text-tertiary)', lineHeight: 1 }}>↓</button>
               <button onClick={() => setShowProfile(true)} title="My profile"
-                style={{ width: 26, height: 26, borderRadius: '50%', background: avatarColor(user.email), border: 'none', cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                style={{ width: 26, height: 26, borderRadius: '50%', background: avatarColor(user.email), border: 'none', cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {(user.user_metadata?.display_name || user.email || '?')[0].toUpperCase()}
               </button>
-              <button onClick={exportData} title="Export backup" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--color-text-tertiary)', lineHeight: 1 }}>↑</button>
-              <button onClick={clearAllData} title="Clear all data" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#c44', lineHeight: 1 }}>✕</button>
-              <button onClick={logout} title="Sign out" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-tertiary)', lineHeight: 1 }}>⏻</button>
+              <button onClick={logout} title="Sign out"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-tertiary)', lineHeight: 1 }}>⏻</button>
             </div>
           </div>
         ) : (
+          /* ── EXPANDED ── */
           <>
-            <div style={{ padding: '8px 6px 4px' }}>
-              <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 10px 6px' }}>Projects</div>
+            {/* Logo */}
+            <div style={{ padding: '14px 14px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid var(--color-border-tertiary)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="18" height="18" viewBox="0 0 32 32" style={{ flexShrink: 0 }}>
+                  <rect width="32" height="32" rx="7" fill="#D97757"/>
+                  <rect x="8" y="8" width="3.5" height="16" fill="white"/>
+                  <rect x="8" y="8" width="15" height="3" fill="white"/>
+                  <rect x="8" y="14.5" width="11" height="2.5" fill="white"/>
+                  <rect x="8" y="21" width="15" height="3" fill="white"/>
+                </svg>
+                <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text-primary)' }}>ErrorLog</span>
+              </div>
+              <button onClick={() => setSidebarCollapsed(true)} title="Collapse sidebar"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', padding: '4px 5px', borderRadius: 5, display: 'flex', flexDirection: 'column', gap: 3.5, alignItems: 'center' }}>
+                <span style={{ display: 'block', width: 14, height: 1.8, borderRadius: 1, background: 'currentColor' }} />
+                <span style={{ display: 'block', width: 14, height: 1.8, borderRadius: 1, background: 'currentColor' }} />
+                <span style={{ display: 'block', width: 14, height: 1.8, borderRadius: 1, background: 'currentColor' }} />
+              </button>
+            </div>
+
+            {/* Projects */}
+            <div style={{ padding: '10px 6px 6px' }}>
+              <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '2px 10px 6px' }}>Projects</div>
               {projects.map(p => {
                 const pOpen = errors.filter(e => e.projId === p.id && !e.resolved).length;
                 return (
                   <div key={p.id} onClick={() => { setActiveProj(p.id); setDetailId(null); setFilter('all'); setSearch(''); }}
+                    className="sl-h"
                     style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 7, margin: '1px 4px', cursor: 'pointer', fontSize: 13, background: p.id === activeProj ? 'var(--color-background-secondary)' : 'transparent', color: p.id === activeProj ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', fontWeight: p.id === activeProj ? 500 : 400 }}>
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, minWidth: 8 }} />
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
@@ -954,48 +1103,64 @@ export default function App() {
                 );
               })}
               <div onClick={() => { setShowNewProj(true); setNewProjName(''); setNewProjColor(PROJ_COLORS[0]); }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 7, margin: '2px 4px', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-tertiary)' }}>
+                className="sl-h"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 7, margin: '2px 4px', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-tertiary)' }}>
                 <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> New project
               </div>
             </div>
-            <div style={{ marginTop: 'auto', padding: '14px 14px 18px', borderTop: '0.5px solid var(--color-border-tertiary)' }}>
-              <button onClick={() => setShowProfile(true)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 7, cursor: 'pointer', marginBottom: 10, background: 'transparent', border: '0.5px solid var(--color-border-secondary)', fontFamily: 'inherit', textAlign: 'left' }}
-                title="My profile">
-                <div style={{ width: 26, height: 26, borderRadius: '50%', background: avatarColor(user.email), color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {(user.user_metadata?.display_name || user.email || '?')[0].toUpperCase()}
+
+            {/* Bottom stack */}
+            <div style={{ marginTop: 'auto' }}>
+
+              {/* Stats */}
+              <div style={{ padding: '12px 16px 10px', borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
+                  <span style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>{errors.length}</span> errors logged
+                  <br />across <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>{projects.length}</span> project{projects.length !== 1 ? 's' : ''}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {user.user_metadata?.display_name || 'My Profile'}
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
-                </div>
-                <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', flexShrink: 0 }}>›</span>
-              </button>
-              <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 4 }}>Total logged</div>
-              <div style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.1 }}>{errors.length}</div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 2 }}>across {projects.length} projects</div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                <button onClick={exportData} title="Export backup JSON"
-                  style={{ flex: 1, padding: '5px 0', borderRadius: 6, border: '0.5px solid var(--color-border-secondary)', background: 'transparent', color: 'var(--color-text-secondary)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  ↑ Export
-                </button>
-                <button onClick={clearAllData} title="Clear all data"
-                  style={{ padding: '5px 8px', borderRadius: 6, border: '0.5px solid var(--color-border-tertiary)', background: 'transparent', color: '#c44', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  ✕
+              </div>
+
+              {/* Export */}
+              <div style={{ padding: '6px 10px 6px', borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                <button onClick={() => setShowExport(true)}
+                  className="sl-h"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 7, border: '0.5px solid var(--color-border-secondary)', background: 'transparent', color: 'var(--color-text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', textAlign: 'left' }}>
+                  <span>↓</span> Export errors (.xlsx)
                 </button>
               </div>
-              <button onClick={logout}
-                style={{ width: '100%', marginTop: 8, padding: '5px 0', borderRadius: 6, border: '0.5px solid var(--color-border-tertiary)', background: 'transparent', color: 'var(--color-text-tertiary)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Sign out — {user.email}
-              </button>
-              <div style={{ marginTop: 14, fontSize: 11, color: 'var(--color-text-tertiary)', textAlign: 'center' }}>
-                Built by{' '}
-                <a href="https://www.linkedin.com/in/akash-biyani" target="_blank" rel="noopener noreferrer"
-                  style={{ color: 'var(--color-text-tertiary)', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }}>
-                  Akash Biyani
-                </a>
+
+              {/* Profile + Sign out */}
+              <div style={{ padding: '6px 10px 4px', borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                <button onClick={() => setShowProfile(true)}
+                  className="sl-h"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 7, border: '0.5px solid var(--color-border-secondary)', background: 'transparent', color: 'var(--color-text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', marginBottom: 4 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: avatarColor(user.email), color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {(user.user_metadata?.display_name || user.email || '?')[0].toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {user.user_metadata?.display_name || 'My Profile'}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
+                  </div>
+                  <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', flexShrink: 0 }}>›</span>
+                </button>
+                <button onClick={logout}
+                  className="sl-h"
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 7, border: 'none', background: 'transparent', color: 'var(--color-text-tertiary)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                  Sign out
+                </button>
+              </div>
+
+              {/* Built by */}
+              <div style={{ padding: '8px 16px 16px', borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', textAlign: 'center' }}>
+                  Built by{' '}
+                  <a href="https://www.linkedin.com/in/akash-biyani" target="_blank" rel="noopener noreferrer"
+                    style={{ color: 'var(--color-text-tertiary)', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }}>
+                    Akash Biyani
+                  </a>
+                </div>
               </div>
             </div>
           </>
@@ -1281,6 +1446,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ── EXPORT MODAL ── */}
+      {showExport && <ExportModal projects={projects} errors={errors} onClose={() => setShowExport(false)} />}
 
       {/* ── PROFILE MODAL ── */}
       {showProfile && <ProfileModal user={user} errors={errors} onClose={() => setShowProfile(false)} />}
