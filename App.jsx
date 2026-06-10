@@ -5,14 +5,40 @@ import { supabase } from './src/supabase.js';
 const DEFAULT_TOOLS = ['Vivado', 'Synopsys DC', 'Cadence Innovus', 'ModelSim', 'VCS', 'Quartus', 'Design Compiler', 'Genus', 'Xcelium', 'Other'];
 const DEFAULT_LANGS = ['SystemVerilog', 'Verilog', 'VHDL', 'C', 'Python', 'TCL', 'Other'];
 const PHASES = ['RTL Design', 'Synthesis', 'Place & Route', 'Simulation', 'Lint', 'Other'];
-const ALL_TAGS = ['timing', 'CDC', 'lint', 'synthesis', 'power', 'area', 'simulation', 'DRC'];
+const ALL_TAGS = ['timing', 'CDC', 'synthesis', 'place-route', 'lint', 'simulation', 'DRC', 'power', 'constraints', 'area'];
 const PROJ_COLORS = ['#E24B4A', '#185FA5', '#1D9E75', '#BA7517', '#7F77DD', '#D4537E'];
+
+// Flow-stage / category classification — maps raw error text to the design-flow
+// stages a hardware engineer thinks in. Stored in the error's `tags` array.
+const CATEGORY_RULES = [
+  { tag: 'timing',      re: /timing|slack|setup|hold|\bwns\b|\btns\b|max.?delay|min.?delay|recovery|removal/i },
+  { tag: 'CDC',         re: /\bcdc\b|clock.?domain|metastab|synchroniz|async.*cross/i },
+  { tag: 'place-route', re: /\bplace|\brout(e|ing)|congest|placer|legaliz|\bp&?r\b|unplaced|overlap|\bnstd\b|io.?standard/i },
+  { tag: 'synthesis',   re: /synth|elaborat|infer|latch|combinational loop|black.?box|optimiz|netlist|unconnected/i },
+  { tag: 'lint',        re: /lint|width.?mismatch|\bport\b|sensitiv|signed|truncat|implicit|multiple driver/i },
+  { tag: 'simulation',  re: /\bsim\b|testbench|assert|\$fatal|\$error|\buvm\b|vsim|xsim|\bvcs\b|out.?of.?bound|null.?pointer/i },
+  { tag: 'DRC',         re: /\bdrc\b|design.?rule|spacing|antenna|geometry|short.?circuit|min.?area|density/i },
+  { tag: 'power',       re: /power|\bupf\b|ir.?drop|switching|leakage|isolation.?cell|level.?shifter/i },
+  { tag: 'constraints', re: /\bsdc\b|\bxdc\b|constraint|create_clock|false.?path|multicycle|set_input|set_output/i },
+];
+function classify(text) {
+  const tags = [];
+  for (const { tag, re } of CATEGORY_RULES) if (re.test(text)) tags.push(tag);
+  return tags;
+}
 
 function parseError(raw) {
   const r = raw.trim();
   const result = { code: '', tool: '', lang: '', file: '', line: '', severity: 'Error', description: '', tags: [] };
-  const codeMatch = r.match(/\b([A-Z][A-Z0-9_]+-\d+)\b/);
-  if (codeMatch) result.code = codeMatch[1];
+  // Error code — try canonical short codes first (NSTD-1, CDC-1042, ELAB-900),
+  // then Vivado/Xilinx bracket codes ([Synth 8-3331], [Timing 38-282]),
+  // then Quartus numeric codes (Error (10228)).
+  const codePatterns = [
+    /\b([A-Z][A-Z0-9_]{2,}-\d+)\b/,
+    /[\[\(]\s*([A-Za-z][\w]*\s+\d+-\d+)\s*[\]\)]/,
+    /\bError\s*\((\d+)\)/i,
+  ];
+  for (const p of codePatterns) { const m = r.match(p); if (m) { result.code = m[1].replace(/\s+/g, ' '); break; } }
   if (/\b(critical|fatal)\b/i.test(r)) result.severity = 'Critical';
   else if (/\bwarning\b/i.test(r)) result.severity = 'Warning';
   else if (/\binfo\b/i.test(r)) result.severity = 'Info';
@@ -33,17 +59,66 @@ function parseError(raw) {
   else if (/synopsys|design.compiler|dc_shell/i.test(r)) result.tool = 'Synopsys DC';
   else if (/innovus|cadence/i.test(r)) result.tool = 'Cadence Innovus';
   else if (/modelsim|vsim/i.test(r)) result.tool = 'ModelSim';
-  else if (/\bvcs\b/i.test(r)) result.tool = 'VCS';
   else if (/quartus/i.test(r)) result.tool = 'Quartus';
-  let desc = r.replace(/^\s*[\[\(]?[A-Z][A-Z0-9_]+\-\d+[\]\)]?\s*[:\-]?\s*/, '').replace(/["']?[\w\/]+\.(sv|v|vhd|vhdl|c|h)["']?/gi, '').replace(/line[:\s]*\d+/gi, '').replace(/\s{2,}/g, ' ').trim();
+  else if (/\bvcs\b/i.test(r)) result.tool = 'VCS';
+  // Vivado/Xilinx logs use [Subsystem N-N] tags even without naming the tool
+  else if (/[\[\(](synth|timing|place|route|drc|opt|common|netlist|ip_flow|filemgmt|constraints|power|pwropt|board|xpm|vivado)\s+\d+-\d+[\]\)]/i.test(r)) result.tool = 'Vivado';
+  let desc = r
+    .replace(/^[\s>*|#-]+/, '')
+    .replace(/^\s*(critical\s+warning|fatal|error|warning|info)\b\s*[:\-]?\s*/i, '')
+    .replace(/[\[\(]\s*[A-Za-z][\w]*\s+[A-Z0-9]+-\d+\s*[\]\)]\s*[:\-]?\s*/, '')
+    .replace(/^\s*[\[\(]?[A-Z][A-Z0-9_]+\-\d+[\]\)]?\s*[:\-]?\s*/, '')
+    .replace(/[\[\(]["']?[\w\/\.\-]+\.(sv|v|vhd|vhdl|c|h)["']?[\s,:]*\d*[\]\)]/gi, '')
+    .replace(/["']?[\w\/]+\.(sv|v|vhd|vhdl|c|h)["']?/gi, '')
+    .replace(/\bline[:\s]*\d+/gi, '')
+    .replace(/[\[\(]\s*:?\s*\d*\s*[\]\)]/g, '')
+    .replace(/\s+:\s*\d+/g, '')
+    .replace(/\(\s*\d+\s*\)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s:\-–]+/, '')
+    .trim();
   const sentences = desc.split(/[.\n]+/).map(s => s.trim()).filter(s => s.length > 8);
   result.description = sentences[0] || desc.slice(0, 140);
-  if (/timing|slack|setup|hold/i.test(r)) result.tags.push('timing');
-  if (/cdc|clock.domain|synchroniz/i.test(r)) result.tags.push('CDC');
-  if (/loop|latch|combinator/i.test(r)) result.tags.push('synthesis');
-  if (/width|port|connect|mismatch/i.test(r)) result.tags.push('lint');
+  result.tags = classify(r);
   const filled = [result.code, result.file, result.description].filter(Boolean).length;
   return { result, parseStatus: filled >= 3 ? 'ok' : filled >= 1 ? 'partial' : 'fail' };
+}
+
+// Split a full log file into individual error/warning chunks. A new chunk begins
+// on any line that starts with a severity keyword or an EDA error code; following
+// (usually indented) lines are treated as continuation of the current chunk.
+function splitLogIntoErrors(raw) {
+  const lines = raw.replace(/\r/g, '').split('\n');
+  // Allow leading noise like "** " (ModelSim), "*E," (VCS), ">", "|" before the severity word.
+  const SEV_START = /^[\s*>|#-]*(critical\s+warning|fatal|error|warning|info)\b[\s:,\-\[\(]/i;
+  const CODE_START = /^\s*[\[\(]?[A-Z][A-Z0-9_]+-\d+[\]\)]?[\s:\-]/;
+  const isStart = l => SEV_START.test(l) || CODE_START.test(l);
+  const chunks = [];
+  let cur = null;
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    if (isStart(line)) {
+      if (cur) chunks.push(cur);
+      cur = line.trim();
+    } else if (cur && cur.length < 600) {
+      cur += ' ' + line.trim();
+    }
+  }
+  if (cur) chunks.push(cur);
+  return chunks;
+}
+
+// Parse a whole log into a deduped list of structured errors, ready for review.
+function parseLog(raw) {
+  const map = new Map();
+  for (const chunk of splitLogIntoErrors(raw)) {
+    const { result, parseStatus } = parseError(chunk);
+    if (!result.code && !result.file && result.description.length < 6) continue;
+    const key = [result.code, result.file, result.line, result.description.slice(0, 60)].join('|');
+    if (map.has(key)) { map.get(key).count++; continue; }
+    map.set(key, { ...result, raw: chunk, parseStatus, count: 1, selected: result.severity !== 'Info' });
+  }
+  return [...map.values()];
 }
 
 function getPasswordChecks(pw) {
@@ -613,30 +688,52 @@ function LandingPage({ onLogin, onSignUp }) {
         @keyframes lp-fade-in   { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes lp-blink     { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
         @keyframes lp-modal-in  { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        html { scroll-behavior: smooth; }
+        .lp-navlink:hover { background: #f2f2f2; color: #111; }
+        @media (min-width: 720px) { .lp-navlink { display: inline-flex !important; } }
+        .lp-card { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .lp-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.09); }
       `}</style>
 
       {/* Nav */}
-      <nav style={{ padding: '15px 36px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid #ebebeb', background: '#fff' }}>
+      <nav style={{ padding: '14px 36px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid #ebebeb', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E24B4A', display: 'inline-block' }} />
+          <svg width="18" height="18" viewBox="0 0 32 32" style={{ flexShrink: 0 }}>
+            <rect width="32" height="32" rx="7" fill="#D97757" />
+            <rect x="8" y="8" width="3.5" height="16" fill="white" />
+            <rect x="8" y="8" width="15" height="3" fill="white" />
+            <rect x="8" y="14.5" width="11" height="2.5" fill="white" />
+            <rect x="8" y="21" width="15" height="3" fill="white" />
+          </svg>
           <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', color: '#111' }}>ErrorLog</span>
         </div>
-        <button onClick={onLogin} style={{ padding: '7px 16px', borderRadius: 7, border: '1px solid #d8d8d8', background: '#fff', color: '#333', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>
-          Sign in
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {[['Features', '#features'], ['How it works', '#how'], ['About', '#about']].map(([lbl, href]) => (
+            <a key={href} href={href} style={{ display: 'none', padding: '7px 12px', fontSize: 13, color: '#555', textDecoration: 'none', borderRadius: 7, fontWeight: 500 }} className="lp-navlink">{lbl}</a>
+          ))}
+          <button onClick={onLogin} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #d8d8d8', background: '#fff', color: '#333', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>
+            Sign in
+          </button>
+          <button onClick={onSignUp} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#E24B4A', color: '#fff', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+            Sign up
+          </button>
+        </div>
       </nav>
 
       {/* Hero */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '52px 36px 68px', gap: 60, flexWrap: 'wrap' }}>
+      <div style={{ minHeight: 'calc(100vh - 130px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '52px 36px 68px', gap: 60, flexWrap: 'wrap' }}>
 
         {/* Left: copy */}
         <div style={{ flex: '0 0 390px', maxWidth: 430 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 11px', borderRadius: 20, background: '#fff', border: '1px solid #ececec', fontSize: 12, color: '#777', marginBottom: 18, fontWeight: 500 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#1D9E75' }} /> Built for RTL & EDA engineers
+          </div>
           <h1 style={{ fontSize: 42, fontWeight: 800, lineHeight: 1.1, color: '#111', letterSpacing: '-0.03em', margin: '0 0 16px' }}>
             Log your EDA errors.<br />
             <span style={{ color: '#E24B4A' }}>Learn from them.</span>
           </h1>
           <p style={{ fontSize: 15, color: '#555', lineHeight: 1.65, margin: '0 0 30px', maxWidth: 360 }}>
-            Paste any compiler output. ErrorLog auto-parses the error code, file, severity, and tool — and tracks it across your RTL projects.
+            Paste a single error or drop a full Vivado / Synopsys / Quartus log. ErrorLog extracts every error, categorizes it by flow stage, and remembers how you fixed it — across all your projects.
           </p>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={onSignUp}
@@ -766,13 +863,254 @@ function LandingPage({ onLogin, onSignUp }) {
         </div>
       </div>
 
+      {/* Tools strip */}
+      <div style={{ padding: '28px 36px', borderTop: '0.5px solid #ebebeb', borderBottom: '0.5px solid #ebebeb', background: '#fff' }}>
+        <div style={{ maxWidth: 980, margin: '0 auto', textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 16, fontWeight: 600 }}>Understands output from the tools you already run</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '14px 28px' }}>
+            {['Vivado', 'Synopsys DC', 'Cadence Innovus', 'ModelSim', 'VCS', 'Quartus', 'Genus', 'Xcelium'].map(t => (
+              <span key={t} style={{ fontSize: 15, fontWeight: 700, color: '#c4c4c8', letterSpacing: '-0.01em' }}>{t}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Features */}
+      <div id="features" style={{ padding: '76px 36px', background: '#f9f9f9' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <h2 style={{ fontSize: 30, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', margin: '0 0 12px' }}>Everything you need to stop re-solving the same error</h2>
+            <p style={{ fontSize: 15, color: '#666', maxWidth: 520, margin: '0 auto', lineHeight: 1.6 }}>From a single pasted line to a thousand-line synthesis log — turn raw tool output into a searchable knowledge base.</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))', gap: 18 }}>
+            {[
+              { icon: '⚡', title: 'Smart error parser', body: 'Paste any compiler output — the error code, file, line, tool, language and severity are extracted automatically.' },
+              { icon: '⬆', title: 'Bulk log import', body: 'Drop a full Vivado, Synopsys or Quartus log file. Every error and warning is pulled out, deduplicated and ready to review.' },
+              { icon: '🏷', title: 'Auto-categorized', body: 'Each issue is tagged by flow stage — synthesis, timing, CDC, place & route, DRC — so filters build themselves.' },
+              { icon: '💡', title: 'Resolution memory', body: 'Record how you fixed it. Hit the same error code again and ErrorLog instantly resurfaces your past fix.' },
+              { icon: '📊', title: 'Cross-project tracking', body: 'Organize errors per project, track open vs resolved, and watch your resolution rate climb over time.' },
+              { icon: '↓', title: 'Excel export', body: 'Export any project or date range to a clean .xlsx — for reports, reviews, or sharing with your team.' },
+            ].map(f => (
+              <div key={f.title} className="lp-card" style={{ background: '#fff', borderRadius: 12, border: '1px solid #ececec', padding: '22px 20px' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 9, background: '#FAECE7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, marginBottom: 14 }}>{f.icon}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#111', marginBottom: 7 }}>{f.title}</div>
+                <div style={{ fontSize: 13.5, color: '#666', lineHeight: 1.6 }}>{f.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* How it works */}
+      <div id="how" style={{ padding: '76px 36px', background: '#fff', borderTop: '0.5px solid #ebebeb' }}>
+        <div style={{ maxWidth: 920, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <h2 style={{ fontSize: 30, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', margin: '0 0 12px' }}>Three steps, then never lose a fix again</h2>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 28 }}>
+            {[
+              { n: '1', title: 'Paste or import', body: 'Drop a log file or paste a single error straight from your terminal or EDA tool.' },
+              { n: '2', title: 'Auto-parsed & sorted', body: 'ErrorLog structures every issue and tags it by flow stage — no manual data entry.' },
+              { n: '3', title: 'Resolve & remember', body: 'Write down the fix once. It comes back automatically the next time the error appears.' },
+            ].map(s => (
+              <div key={s.n} style={{ textAlign: 'center' }}>
+                <div style={{ width: 46, height: 46, borderRadius: '50%', background: '#E24B4A', color: '#fff', fontSize: 19, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>{s.n}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#111', marginBottom: 8 }}>{s.title}</div>
+                <div style={{ fontSize: 13.5, color: '#666', lineHeight: 1.6, maxWidth: 260, margin: '0 auto' }}>{s.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* About / contact */}
+      <div id="about" style={{ padding: '76px 36px', background: '#f9f9f9', borderTop: '0.5px solid #ebebeb' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto', textAlign: 'center' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: avatarColor('akash'), color: '#fff', fontSize: 26, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>A</div>
+          <h2 style={{ fontSize: 26, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', margin: '0 0 14px' }}>Built by an engineer who lived the problem</h2>
+          <p style={{ fontSize: 15, color: '#555', lineHeight: 1.7, margin: '0 0 12px' }}>
+            I'm <strong>Akash Biyani</strong>, a hardware / RTL engineer at RPTU. I got tired of solving the same Vivado and Synopsys errors month after month and digging through scattered Excel sheets to remember the fix. ErrorLog is the tool I wished I had — a real, shared memory for EDA errors.
+          </p>
+          <p style={{ fontSize: 14, color: '#777', lineHeight: 1.7, margin: '0 0 24px' }}>
+            It's actively being built. If you run RTL flows and have ideas, bugs, or just want to talk shop — I'd genuinely love to hear from you.
+          </p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <a href="https://www.linkedin.com/in/akash-biyani" target="_blank" rel="noopener noreferrer"
+              style={{ padding: '9px 18px', borderRadius: 8, background: '#fff', border: '1px solid #d8d8d8', color: '#333', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+              in · LinkedIn
+            </a>
+            <a href="mailto:aakash.biyani29@gmail.com"
+              style={{ padding: '9px 18px', borderRadius: 8, background: '#fff', border: '1px solid #d8d8d8', color: '#333', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+              ✉ Email me
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA band */}
+      <div style={{ padding: '64px 36px', background: '#111', textAlign: 'center' }}>
+        <h2 style={{ fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', margin: '0 0 12px' }}>Start your error knowledge base today</h2>
+        <p style={{ fontSize: 15, color: '#aaa', margin: '0 0 26px', lineHeight: 1.6 }}>Free to use. No setup. Just paste your first error.</p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button onClick={onSignUp}
+            style={{ padding: '12px 26px', borderRadius: 9, background: '#E24B4A', color: '#fff', border: 'none', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Sign up — free
+          </button>
+          <button onClick={onLogin}
+            style={{ padding: '12px 24px', borderRadius: 9, border: '1px solid #444', background: 'transparent', color: '#eee', fontSize: 15, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Sign in
+          </button>
+        </div>
+      </div>
+
       {/* Footer */}
-      <div style={{ textAlign: 'center', padding: '13px 24px', fontSize: 11, color: '#c0c0c0', borderTop: '0.5px solid #ebebeb', background: '#fff' }}>
-        Built by{' '}
+      <div style={{ textAlign: 'center', padding: '22px 24px', fontSize: 12, color: '#aaa', background: '#0c0c0c' }}>
+        <span style={{ color: '#888' }}>ErrorLog</span> — built by{' '}
         <a href="https://www.linkedin.com/in/akash-biyani" target="_blank" rel="noopener noreferrer"
-          style={{ color: '#c0c0c0', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2 }}>
+          style={{ color: '#aaa', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2 }}>
           Akash Biyani
         </a>
+        <span style={{ color: '#555' }}> · © {new Date().getFullYear()}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Import Log Modal — drop/paste a full EDA log, extract every error ──
+function ImportLogModal({ projects, activeProj, onClose, onImport }) {
+  const [text, setText] = useState('');
+  const [items, setItems] = useState(null);   // null = not parsed yet
+  const [projId, setProjId] = useState(activeProj || (projects[0]?.id ?? ''));
+  const [fileName, setFileName] = useState('');
+  const [dragOver, setDragOver] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [showWarnings, setShowWarnings] = useState(true);
+  const [showInfo, setShowInfo] = useState(false);
+
+  function runParse(raw) {
+    const parsed = parseLog(raw);
+    setItems(parsed);
+  }
+  function loadFile(file) {
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = e => { const t = e.target.result || ''; setText(t); runParse(t); };
+    reader.readAsText(file);
+  }
+
+  const sevRank = { Critical: 0, Error: 1, Warning: 2, Info: 3 };
+  const visible = (items || [])
+    .filter(it => (it.severity !== 'Warning' || showWarnings) && (it.severity !== 'Info' || showInfo))
+    .sort((a, b) => (sevRank[a.severity] ?? 4) - (sevRank[b.severity] ?? 4));
+  const counts = (items || []).reduce((a, it) => { const k = it.severity === 'Critical' ? 'Error' : it.severity; a[k] = (a[k] || 0) + 1; return a; }, {});
+  const selectedItems = visible.filter(it => it.selected);
+
+  function toggle(idx) {
+    setItems(prev => prev.map(it => it === visible[idx] ? { ...it, selected: !it.selected } : it));
+  }
+  function setAll(val) {
+    setItems(prev => prev.map(it => visible.includes(it) ? { ...it, selected: val } : it));
+  }
+  async function doImport() {
+    if (!projId || selectedItems.length === 0) return;
+    setImporting(true);
+    await onImport(selectedItems, projId);
+    setImporting(false);
+  }
+
+  const sectionTitle = { fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' };
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
+      <div style={{ background: '#ffffff', borderRadius: 14, border: '1.5px solid #e0e0e0', width: '100%', maxWidth: 640, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+
+        {/* Header */}
+        <div style={{ padding: '20px 26px 16px', borderBottom: '1px solid #e8e8e8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: '#111', letterSpacing: '-0.02em' }}>Import log file</div>
+            <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>Drop a Vivado / Synopsys / Quartus log — we extract every error automatically.</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#bbb', lineHeight: 1, padding: '0 4px' }}>×</button>
+        </div>
+
+        <div style={{ padding: '18px 26px', overflowY: 'auto', flex: 1 }}>
+          {/* Drop zone */}
+          <label
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); setDragOver(false); loadFile(e.dataTransfer.files[0]); }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '20px', borderRadius: 10, border: `1.5px dashed ${dragOver ? '#E24B4A' : '#cfcfcf'}`, background: dragOver ? '#FAECE7' : '#fafafa', cursor: 'pointer', textAlign: 'center', marginBottom: 14 }}>
+            <span style={{ fontSize: 22 }}>⬆</span>
+            <span style={{ fontSize: 13, color: '#444', fontWeight: 600 }}>{fileName || 'Drop a log file here, or click to browse'}</span>
+            <span style={{ fontSize: 11, color: '#aaa' }}>.log · .rpt · .out · .txt</span>
+            <input type="file" accept=".log,.rpt,.out,.txt,text/plain" style={{ display: 'none' }}
+              onChange={e => loadFile(e.target.files[0])} />
+          </label>
+
+          {/* Or paste */}
+          <div style={sectionTitle}>Or paste the log</div>
+          <textarea value={text} onChange={e => { setText(e.target.value); if (e.target.value.trim().length > 20) runParse(e.target.value); else setItems(null); }}
+            placeholder="Paste the full compiler / synthesis / P&R log output..."
+            style={{ width: '100%', minHeight: 90, padding: '10px 12px', borderRadius: 8, border: '1.5px solid #c0c0c0', background: '#f7f7f7', color: '#111', fontSize: 12, fontFamily: 'monospace', outline: 'none', resize: 'vertical', boxSizing: 'border-box', marginBottom: 16 }} />
+
+          {/* Results */}
+          {items && (items.length === 0 ? (
+            <div style={{ padding: '14px', borderRadius: 8, background: '#FAEEDA', border: '1px solid #e6c97a', fontSize: 13, color: '#854F0B' }}>
+              No errors detected. Make sure the log contains lines like <code>ERROR: [Synth 8-1234] ...</code>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{items.length} unique issue{items.length !== 1 ? 's' : ''} found</span>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#FAECE7', color: '#993C1D', fontWeight: 600 }}>{counts.Error || 0} errors</span>
+                <span onClick={() => setShowWarnings(v => !v)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, cursor: 'pointer', background: showWarnings ? '#FAEEDA' : '#f0f0f0', color: showWarnings ? '#854F0B' : '#aaa', fontWeight: 600 }}>{counts.Warning || 0} warnings {showWarnings ? '✓' : ''}</span>
+                {(counts.Info || 0) > 0 && <span onClick={() => setShowInfo(v => !v)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, cursor: 'pointer', background: showInfo ? '#E6F1FB' : '#f0f0f0', color: showInfo ? '#185FA5' : '#aaa', fontWeight: 600 }}>{counts.Info} info {showInfo ? '✓' : ''}</span>}
+                <div style={{ flex: 1 }} />
+                <button onClick={() => setAll(true)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#185FA5', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Select all</button>
+                <button onClick={() => setAll(false)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontFamily: 'inherit' }}>None</button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {visible.map((it, idx) => {
+                  const sev = SEV_COLOR[it.severity] || SEV_COLOR.Error;
+                  return (
+                    <label key={idx} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '9px 11px', borderRadius: 8, border: '1px solid #ececec', background: it.selected ? '#fff' : '#fafafa', borderLeft: `3px solid ${sev.border}`, cursor: 'pointer', opacity: it.selected ? 1 : 0.6 }}>
+                      <input type="checkbox" checked={it.selected} onChange={() => toggle(idx)} style={{ marginTop: 3, accentColor: '#E24B4A', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 4, fontFamily: 'monospace', background: sev.bg, color: sev.text }}>{it.code || it.severity}</span>
+                          {it.count > 1 && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: '#eee', color: '#777' }}>×{it.count}</span>}
+                          {it.tool && <span style={{ fontSize: 10, color: '#888', background: '#f0f0f0', padding: '1px 6px', borderRadius: 4 }}>{it.tool}</span>}
+                          {it.tags.map(t => <span key={t} style={{ fontSize: 10, color: '#185FA5', background: '#E6F1FB', padding: '1px 6px', borderRadius: 4, fontWeight: 500 }}>{t}</span>)}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#222', lineHeight: 1.4 }}>{it.description}</div>
+                        {it.file && <div style={{ fontSize: 11, color: '#999', marginTop: 2, fontFamily: 'monospace' }}>📄 {it.file}{it.line ? `:${it.line}` : ''}</div>}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 26px 18px', borderTop: '1px solid #e8e8e8', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+            <span style={{ fontSize: 12, color: '#777', flexShrink: 0 }}>Into project</span>
+            <select value={projId} onChange={e => setProjId(e.target.value)}
+              style={{ padding: '7px 9px', borderRadius: 7, border: '1px solid #c8c8c8', background: '#fff', color: '#111', fontSize: 13, fontFamily: 'inherit', outline: 'none', maxWidth: 200 }}>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <button onClick={onClose} style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid #d0d0d0', background: 'transparent', color: '#555', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>Cancel</button>
+          <button onClick={doImport} disabled={selectedItems.length === 0 || !projId || importing}
+            style={{ padding: '9px 20px', borderRadius: 8, background: selectedItems.length === 0 ? '#ddd' : '#E24B4A', color: selectedItems.length === 0 ? '#aaa' : '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: selectedItems.length === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: importing ? 0.7 : 1 }}>
+            {importing ? 'Importing…' : `Import ${selectedItems.length || ''} error${selectedItems.length !== 1 ? 's' : ''}`}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -786,13 +1124,16 @@ export default function App() {
   const [authMode, setAuthMode] = useState(null); // null=landing, 'login', 'signup'
   const [showProfile, setShowProfile] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [verifyDismissed, setVerifyDismissed] = useState(false);
+  const [theme, setTheme] = useState(() => { try { return localStorage.getItem('errlog_theme') || 'light'; } catch { return 'light'; } });
 
   // ── App state ──
   const [projects, setProjects] = useState([]);
   const [errors, setErrors] = useState([]);
   const [activeProj, setActiveProj] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState(null);
   const [search, setSearch] = useState('');
   const [detailId, setDetailId] = useState(null);
   const [showLog, setShowLog] = useState(false);
@@ -834,6 +1175,13 @@ export default function App() {
     if (!user) { setProjects([]); setErrors([]); setActiveProj(null); return; }
     loadData();
   }, [user]);
+
+  // ── Theme: apply to <html> + persist ──
+  useEffect(() => {
+    if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem('errlog_theme', theme); } catch {}
+  }, [theme]);
 
   // ── Persist UI preferences ──
   useEffect(() => { localStorage.setItem('errlog_sidebarCollapsed', JSON.stringify(sidebarCollapsed)); }, [sidebarCollapsed]);
@@ -903,6 +1251,26 @@ export default function App() {
     setDetailId(mapped.id);
     if (dupe) showToast(`⚡ You fixed ${entry.code} before — check your previous resolution!`);
     else showToast('Error logged');
+  }
+
+  // ── Bulk import parsed errors from a log file ──
+  async function importErrors(list, projId) {
+    if (!list.length || !projId) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const entries = list.map(r => ({
+      user_id: user.id, proj_id: projId,
+      code: r.code || '', tool: r.tool || '', lang: r.lang || '',
+      file: r.file || '', line: r.line || '', severity: r.severity || 'Error',
+      description: r.description || 'Unknown error', notes: '',
+      resolution_title: '', resolution: '', resolved: false,
+      tags: r.tags || [], date: today,
+    }));
+    const { data, error } = await supabase.from('errors').insert(entries).select();
+    if (error) { showToast('Import failed — please try again'); return; }
+    setErrors(prev => [...prev, ...data.map(fromDb)]);
+    setShowImport(false);
+    setActiveProj(projId);
+    showToast(`Imported ${data.length} error${data.length !== 1 ? 's' : ''}`);
   }
 
   async function deleteError(id) {
@@ -975,8 +1343,14 @@ export default function App() {
   const resolvedCount = projErrors.filter(e => e.resolved).length;
   const activeP = projects.find(p => p.id === activeProj);
 
+  // Smart filter chips — built from the categories actually present in this project
+  const tagCounts = {};
+  projErrors.forEach(e => (e.tags || []).forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; }));
+  const smartTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([t]) => t);
+
   const filtered = projErrors
     .filter(e => { if (filter === 'open') return !e.resolved; if (filter === 'resolved') return e.resolved; return true; })
+    .filter(e => !categoryFilter || (e.tags || []).includes(categoryFilter))
     .filter(e => {
       if (!search) return true;
       const q = search.toLowerCase();
@@ -1043,7 +1417,7 @@ export default function App() {
             </div>
             <div style={{ padding: '10px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flex: 1 }}>
               {projects.map(p => (
-                <div key={p.id} onClick={() => { setActiveProj(p.id); setDetailId(null); setFilter('all'); setSearch(''); }}
+                <div key={p.id} onClick={() => { setActiveProj(p.id); setDetailId(null); setFilter('all'); setSearch(''); setCategoryFilter(null); }}
                   title={p.name}
                   style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, cursor: 'pointer', border: p.id === activeProj ? '2px solid var(--color-text-primary)' : '2px solid transparent', boxSizing: 'border-box' }} />
               ))}
@@ -1054,6 +1428,8 @@ export default function App() {
             <div style={{ paddingBottom: 14, paddingTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, borderTop: '0.5px solid var(--color-border-tertiary)', width: '100%' }}>
               <button onClick={() => setShowExport(true)} title="Export to Excel"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--color-text-tertiary)', lineHeight: 1 }}>↓</button>
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--color-text-tertiary)', lineHeight: 1 }}>{theme === 'dark' ? '☀' : '☾'}</button>
               <button onClick={() => setShowProfile(true)} title="My profile"
                 style={{ width: 26, height: 26, borderRadius: '50%', background: avatarColor(user.email), border: 'none', cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {(user.user_metadata?.display_name || user.email || '?')[0].toUpperCase()}
@@ -1091,7 +1467,7 @@ export default function App() {
               {projects.map(p => {
                 const pOpen = errors.filter(e => e.projId === p.id && !e.resolved).length;
                 return (
-                  <div key={p.id} onClick={() => { setActiveProj(p.id); setDetailId(null); setFilter('all'); setSearch(''); }}
+                  <div key={p.id} onClick={() => { setActiveProj(p.id); setDetailId(null); setFilter('all'); setSearch(''); setCategoryFilter(null); }}
                     className="sl-h"
                     style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 7, margin: '1px 4px', cursor: 'pointer', fontSize: 13, background: p.id === activeProj ? 'var(--color-background-secondary)' : 'transparent', color: p.id === activeProj ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', fontWeight: p.id === activeProj ? 500 : 400 }}>
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, minWidth: 8 }} />
@@ -1127,6 +1503,19 @@ export default function App() {
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 7, border: '0.5px solid var(--color-border-secondary)', background: 'transparent', color: 'var(--color-text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', textAlign: 'left' }}>
                   <span>↓</span> Export errors (.xlsx)
                 </button>
+              </div>
+
+              {/* Appearance / theme */}
+              <div style={{ padding: '6px 10px 6px', borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px' }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', flex: 1, paddingLeft: 4 }}>Appearance</span>
+                  {[['light', '☀', 'Light'], ['dark', '☾', 'Dark']].map(([val, icon, lbl]) => (
+                    <button key={val} onClick={() => setTheme(val)} title={lbl}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', border: '0.5px solid', borderColor: theme === val ? 'var(--color-border-primary)' : 'var(--color-border-tertiary)', background: theme === val ? 'var(--color-background-secondary)' : 'transparent', color: theme === val ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)', fontWeight: theme === val ? 600 : 400 }}>
+                      <span>{icon}</span>{lbl}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Profile + Sign out */}
@@ -1187,6 +1576,10 @@ export default function App() {
             <span style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>{activeP?.name}</span>
             <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: '#FAECE7', color: '#993C1D', fontWeight: 500 }}>{openCount} open</span>
             <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: '#EAF3DE', color: '#3B6D11', fontWeight: 500 }}>{resolvedCount} resolved</span>
+            <button onClick={() => setShowImport(true)} title="Import a full log file"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 7, background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', border: '0.5px solid var(--color-border-secondary)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+              ⬆ Import log
+            </button>
             <button onClick={() => { setShowLog(true); setRawInput(''); setParsed(null); setParseStatus(null); setEditP({}); }}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 7, background: '#E24B4A', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               + Log Error
@@ -1206,12 +1599,16 @@ export default function App() {
                 {f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
-            {['timing', 'CDC', 'lint', 'synthesis'].map(t => (
-              <button key={t} onClick={() => setSearch(search === t ? '' : t)}
-                style={{ padding: '5px 11px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: '0.5px solid', borderColor: search === t ? '#185FA5' : 'var(--color-border-tertiary)', background: search === t ? '#E6F1FB' : 'transparent', color: search === t ? '#185FA5' : 'var(--color-text-tertiary)', fontFamily: 'inherit' }}>
-                {t}
-              </button>
-            ))}
+            {smartTags.length > 0 && <span style={{ width: 1, height: 18, background: 'var(--color-border-tertiary)', margin: '0 2px' }} />}
+            {smartTags.map(t => {
+              const active = categoryFilter === t;
+              return (
+                <button key={t} onClick={() => setCategoryFilter(active ? null : t)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: '0.5px solid', borderColor: active ? '#185FA5' : 'var(--color-border-tertiary)', background: active ? '#E6F1FB' : 'transparent', color: active ? '#185FA5' : 'var(--color-text-tertiary)', fontWeight: active ? 600 : 400, fontFamily: 'inherit' }}>
+                  {t}<span style={{ fontSize: 10, opacity: 0.7 }}>{tagCounts[t]}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Error List */}
@@ -1449,6 +1846,9 @@ export default function App() {
 
       {/* ── EXPORT MODAL ── */}
       {showExport && <ExportModal projects={projects} errors={errors} onClose={() => setShowExport(false)} />}
+
+      {/* ── IMPORT LOG MODAL ── */}
+      {showImport && <ImportLogModal projects={projects} activeProj={activeProj} onClose={() => setShowImport(false)} onImport={importErrors} />}
 
       {/* ── PROFILE MODAL ── */}
       {showProfile && <ProfileModal user={user} errors={errors} onClose={() => setShowProfile(false)} />}

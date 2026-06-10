@@ -4,10 +4,44 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>ErrorLog</title>
+    <title>ErrorLog — Log your EDA errors. Learn from them.</title>
+    <meta name="description" content="ErrorLog auto-parses Vivado, Synopsys, Cadence and Quartus compiler output, categorizes every error by flow stage, and remembers how you fixed it." />
+    <script>
+      // Apply saved theme before paint to avoid a flash of the wrong theme
+      try {
+        if (localStorage.getItem('errlog_theme') === 'dark')
+          document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (e) {}
+    </script>
     <style>
+      :root {
+        --color-background-primary: #ffffff;
+        --color-background-secondary: #f1f1f4;
+        --color-background-tertiary: #f7f7f9;
+        --color-text-primary: #18181b;
+        --color-text-secondary: #52525b;
+        --color-text-tertiary: #9a9aa3;
+        --color-border-primary: #b4b4ba;
+        --color-border-secondary: #d6d6db;
+        --color-border-tertiary: #e8e8ec;
+        --font-sans: system-ui, -apple-system, sans-serif;
+        color-scheme: light;
+      }
+      html[data-theme="dark"] {
+        --color-background-primary: #1b1b1f;
+        --color-background-secondary: #27272c;
+        --color-background-tertiary: #131316;
+        --color-text-primary: #f2f2f4;
+        --color-text-secondary: #b2b2bb;
+        --color-text-tertiary: #7d7d87;
+        --color-border-primary: #4d4d56;
+        --color-border-secondary: #3a3a41;
+        --color-border-tertiary: #2b2b31;
+        color-scheme: dark;
+      }
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: system-ui, -apple-system, sans-serif; }
+      html, body { background: var(--color-background-tertiary); }
+      body { font-family: var(--font-sans); }
     </style>
   </head>
   <body>
