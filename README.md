@@ -23,6 +23,7 @@ Hardware designers writing RTL (VHDL, Verilog, SystemVerilog) face compiler and 
 
 - **Multi-project sidebar** — collapsible VSCode-style dock, color-coded projects
 - **Smart error parser** — paste raw EDA output, auto-extracts error code, file, line, severity, tool, language, and tags
+- **Bulk log import** — drop a full `.log`/`.rpt` file; every error and warning is pulled out, deduped, and ready to review
 - **Supports all major EDA tools** — Vivado, Synopsys DC, Cadence Innovus, ModelSim, VCS, Quartus, and any custom tool you add
 - **Error cards** — color coded by severity (Error / Warning / Critical / Info), green when resolved
 - **Detail panel** — click any error to open; every field is click-to-edit inline
@@ -32,7 +33,8 @@ Hardware designers writing RTL (VHDL, Verilog, SystemVerilog) face compiler and 
 - **Custom tool/language lists** — add your own EDA tools and HDL languages on the fly
 - **Cloud storage** — data synced to Postgres via Supabase; survives device switches
 - **User accounts** — email/password auth; each user sees only their own projects and errors
-- **Export / Import** — backup your data as JSON and restore it anytime
+- **Excel export** — export any project or date range to a clean `.xlsx`
+- **Dark mode + mobile-friendly** — light/dark theme toggle; layout adapts to phone, laptop, and large monitors
 
 ---
 
@@ -61,6 +63,7 @@ To run it locally or self-host with your own database, see the [`local-dev`](../
 - [x] localStorage persistence + Export/Import
 - [x] Supabase backend — cloud sync, user accounts, RLS
 - [x] Vercel deployment — live at [log-your-error.vercel.app](https://log-your-error.vercel.app/)
+- [x] Bulk log import, Excel export, dark mode, responsive mobile layout
 - [ ] Team sharing — colleagues see each other's resolved errors and fixes
 
 ---

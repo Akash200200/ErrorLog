@@ -8,6 +8,18 @@ const PHASES = ['RTL Design', 'Synthesis', 'Place & Route', 'Simulation', 'Lint'
 const ALL_TAGS = ['timing', 'CDC', 'synthesis', 'place-route', 'lint', 'simulation', 'DRC', 'power', 'constraints', 'area'];
 const PROJ_COLORS = ['#E24B4A', '#185FA5', '#1D9E75', '#BA7517', '#7F77DD', '#D4537E'];
 
+// Tracks the viewport width so inline-styled components can adapt to the device.
+// isMobile ≈ phones, isTablet ≈ small laptops / large phones in landscape.
+function useViewport() {
+  const [width, setWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1200));
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return { width, isMobile: width <= 640, isTablet: width <= 980 };
+}
+
 // Flow-stage / category classification — maps raw error text to the design-flow
 // stages a hardware engineer thinks in. Stored in the error's `tags` array.
 const CATEGORY_RULES = [
@@ -337,6 +349,7 @@ function ProfileModal({ user, errors, onClose }) {
 
 // ── Reset Password Screen (shown after clicking email reset link) ──
 function ResetPasswordScreen({ onDone }) {
+  const { isMobile } = useViewport();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
@@ -353,20 +366,20 @@ function ResetPasswordScreen({ onDone }) {
     setLoading(false);
   }
 
-  const inp = { padding: '9px 11px', borderRadius: 7, border: '1px solid #d0d0d0', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', color: '#111', marginBottom: 8 };
+  const inp = { padding: '9px 11px', borderRadius: 7, border: '1px solid var(--color-border-secondary)', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', marginBottom: 8 };
   const pwChecks = password ? getPasswordChecks(password) : null;
 
   return (
-    <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-tertiary, #f5f5f5)', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e0e0e0', width: '100%', maxWidth: 360, padding: '32px 28px 24px', boxShadow: '0 8px 40px rgba(0,0,0,0.1)' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-tertiary, #f5f5f5)', fontFamily: 'system-ui, sans-serif', padding: 16, boxSizing: 'border-box' }}>
+      <div style={{ background: 'var(--color-background-primary)', borderRadius: 14, border: '1px solid var(--color-border-tertiary)', width: '100%', maxWidth: 360, padding: isMobile ? '24px 20px 20px' : '32px 28px 24px', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22 }}>
           <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E24B4A', display: 'inline-block' }} />
-          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: '#111' }}>ErrorLog</span>
+          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text-primary)' }}>ErrorLog</span>
         </div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#111', marginBottom: 4 }}>Set new password</div>
-        <div style={{ fontSize: 13, color: '#999', marginBottom: 22 }}>Choose a new password for your account.</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4 }}>Set new password</div>
+        <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)', marginBottom: 22 }}>Choose a new password for your account.</div>
         <form onSubmit={handleReset}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>New password</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>New password</div>
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} autoFocus style={inp} />
           {pwChecks && (
             <div style={{ marginBottom: 12 }}>
@@ -377,7 +390,7 @@ function ResetPasswordScreen({ onDone }) {
               ))}
             </div>
           )}
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Confirm password</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Confirm password</div>
           <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required minLength={8} style={{ ...inp, marginBottom: 18 }} />
           {msg.text && (
             <div style={{ fontSize: 12, marginBottom: 14, padding: '8px 10px', borderRadius: 6, background: msg.type === 'error' ? '#FAECE7' : '#EAF3DE', color: msg.type === 'error' ? '#993C1D' : '#3B6D11' }}>
@@ -396,6 +409,7 @@ function ResetPasswordScreen({ onDone }) {
 
 // ── Auth Screen ──
 function AuthScreen({ initialMode = 'login', onBack }) {
+  const { isMobile } = useViewport();
   const [mode, setMode] = useState(initialMode);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -437,43 +451,43 @@ function AuthScreen({ initialMode = 'login', onBack }) {
     setLoading(false);
   }
 
-  const inp = { padding: '9px 11px', borderRadius: 7, border: '1px solid #d0d0d0', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', color: '#111', marginBottom: 12 };
+  const inp = { padding: '9px 11px', borderRadius: 7, border: '1px solid var(--color-border-secondary)', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', marginBottom: 12 };
   const pwChecks = mode === 'signup' && password ? getPasswordChecks(password) : null;
 
   return (
-    <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-tertiary, #f5f5f5)', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e0e0e0', width: '100%', maxWidth: 360, padding: '32px 28px 24px', boxShadow: '0 8px 40px rgba(0,0,0,0.1)' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-tertiary, #f5f5f5)', fontFamily: 'system-ui, sans-serif', padding: 16, boxSizing: 'border-box' }}>
+      <div style={{ background: 'var(--color-background-primary)', borderRadius: 14, border: '1px solid var(--color-border-tertiary)', width: '100%', maxWidth: 360, padding: isMobile ? '24px 20px 20px' : '32px 28px 24px', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22 }}>
           <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E24B4A', display: 'inline-block' }} />
-          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: '#111' }}>ErrorLog</span>
+          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text-primary)' }}>ErrorLog</span>
         </div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#111', marginBottom: 4 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4 }}>
           {mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Reset password'}
         </div>
-        <div style={{ fontSize: 13, color: '#999', marginBottom: 22 }}>
+        <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)', marginBottom: 22 }}>
           {mode === 'login' ? 'Welcome back.' : mode === 'signup' ? 'Start logging your EDA errors.' : 'Enter your email and we\'ll send a reset link.'}
         </div>
         <form onSubmit={mode === 'forgot' ? handleForgot : handleSubmit}>
           {mode === 'signup' && (
             <div style={{ display: 'flex', gap: 10, marginBottom: 0 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>First name</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>First name</div>
                 <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} required autoFocus placeholder="Jane" style={inp} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last name</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last name</div>
                 <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} required placeholder="Smith" style={inp} />
               </div>
             </div>
           )}
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</div>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus={mode !== 'signup'} style={inp} />
           {mode !== 'forgot' && <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Password</div>
               {mode === 'login' && (
                 <button type="button" onClick={() => { setMode('forgot'); setMsg({ type: '', text: '' }); }}
-                  style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 12, padding: 0, fontFamily: 'inherit' }}>
+                  style={{ background: 'none', border: 'none', color: 'var(--color-text-tertiary)', cursor: 'pointer', fontSize: 12, padding: 0, fontFamily: 'inherit' }}>
                   Forgot password?
                 </button>
               )}
@@ -500,7 +514,7 @@ function AuthScreen({ initialMode = 'login', onBack }) {
             {loading ? 'Please wait...' : mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send reset link'}
           </button>
         </form>
-        <div style={{ marginTop: 16, fontSize: 13, color: '#999', textAlign: 'center' }}>
+        <div style={{ marginTop: 16, fontSize: 13, color: 'var(--color-text-tertiary)', textAlign: 'center' }}>
           {mode === 'forgot' ? (
             <button onClick={() => { setMode('login'); setMsg({ type: '', text: '' }); }}
               style={{ background: 'none', border: 'none', color: '#E24B4A', cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: 0, fontFamily: 'inherit' }}>
@@ -642,6 +656,9 @@ function ExportModal({ projects, errors, onClose }) {
 
 // ── Landing Page ──
 function LandingPage({ onLogin, onSignUp }) {
+  const { isMobile } = useViewport();
+  const px = isMobile ? 18 : 36;           // shared horizontal page padding
+  const sectionPadY = isMobile ? 48 : 76;  // shared vertical section padding
   const [modalOpen, setModalOpen] = useState(false);
   const [typedLen, setTypedLen] = useState(0);
   const [parsedVisible, setParsedVisible] = useState(false);
@@ -696,7 +713,7 @@ function LandingPage({ onLogin, onSignUp }) {
       `}</style>
 
       {/* Nav */}
-      <nav style={{ padding: '14px 36px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid #ebebeb', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', position: 'sticky', top: 0, zIndex: 50 }}>
+      <nav style={{ padding: `13px ${px}px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid #ebebeb', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <svg width="18" height="18" viewBox="0 0 32 32" style={{ flexShrink: 0 }}>
             <rect width="32" height="32" rx="7" fill="#D97757" />
@@ -721,14 +738,15 @@ function LandingPage({ onLogin, onSignUp }) {
       </nav>
 
       {/* Hero */}
-      <div style={{ minHeight: 'calc(100vh - 130px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '52px 36px 68px', gap: 60, flexWrap: 'wrap' }}>
+      <div style={{ minHeight: isMobile ? 'auto' : 'calc(100vh - 130px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `${isMobile ? 36 : 52}px ${px}px ${isMobile ? 44 : 68}px` }}>
+        <div style={{ width: '100%', maxWidth: 1120, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? 34 : 56, flexWrap: 'wrap' }}>
 
         {/* Left: copy */}
-        <div style={{ flex: '0 0 390px', maxWidth: 430 }}>
+        <div style={{ flex: '1 1 360px', maxWidth: isMobile ? '100%' : 440 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 11px', borderRadius: 20, background: '#fff', border: '1px solid #ececec', fontSize: 12, color: '#777', marginBottom: 18, fontWeight: 500 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#1D9E75' }} /> Built for RTL & EDA engineers
           </div>
-          <h1 style={{ fontSize: 42, fontWeight: 800, lineHeight: 1.1, color: '#111', letterSpacing: '-0.03em', margin: '0 0 16px' }}>
+          <h1 style={{ fontSize: isMobile ? 31 : 42, fontWeight: 800, lineHeight: 1.1, color: '#111', letterSpacing: '-0.03em', margin: '0 0 16px' }}>
             Log your EDA errors.<br />
             <span style={{ color: '#E24B4A' }}>Learn from them.</span>
           </h1>
@@ -748,7 +766,7 @@ function LandingPage({ onLogin, onSignUp }) {
         </div>
 
         {/* Right: animated demo window */}
-        <div style={{ flex: '1 1 460px', maxWidth: 520 }}>
+        <div style={{ flex: '1 1 420px', maxWidth: isMobile ? '100%' : 520, width: '100%' }}>
           <div style={{ borderRadius: 12, border: '1px solid #e0e0e0', boxShadow: '0 16px 56px rgba(0,0,0,0.11)', overflow: 'hidden', background: '#fff' }}>
             {/* Window chrome */}
             <div style={{ height: 34, background: '#f5f5f5', borderBottom: '0.5px solid #e8e8e8', display: 'flex', alignItems: 'center', padding: '0 14px', gap: 6 }}>
@@ -861,10 +879,11 @@ function LandingPage({ onLogin, onSignUp }) {
             </div>
           </div>
         </div>
+        </div>
       </div>
 
       {/* Tools strip */}
-      <div style={{ padding: '28px 36px', borderTop: '0.5px solid #ebebeb', borderBottom: '0.5px solid #ebebeb', background: '#fff' }}>
+      <div style={{ padding: `28px ${px}px`, borderTop: '0.5px solid #ebebeb', borderBottom: '0.5px solid #ebebeb', background: '#fff' }}>
         <div style={{ maxWidth: 980, margin: '0 auto', textAlign: 'center' }}>
           <div style={{ fontSize: 11, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 16, fontWeight: 600 }}>Understands output from the tools you already run</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '14px 28px' }}>
@@ -876,10 +895,10 @@ function LandingPage({ onLogin, onSignUp }) {
       </div>
 
       {/* Features */}
-      <div id="features" style={{ padding: '76px 36px', background: '#f9f9f9' }}>
+      <div id="features" style={{ padding: `${sectionPadY}px ${px}px`, background: '#f9f9f9' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
-            <h2 style={{ fontSize: 30, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', margin: '0 0 12px' }}>Everything you need to stop re-solving the same error</h2>
+            <h2 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', margin: '0 0 12px' }}>Everything you need to stop re-solving the same error</h2>
             <p style={{ fontSize: 15, color: '#666', maxWidth: 520, margin: '0 auto', lineHeight: 1.6 }}>From a single pasted line to a thousand-line synthesis log — turn raw tool output into a searchable knowledge base.</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))', gap: 18 }}>
@@ -902,10 +921,10 @@ function LandingPage({ onLogin, onSignUp }) {
       </div>
 
       {/* How it works */}
-      <div id="how" style={{ padding: '76px 36px', background: '#fff', borderTop: '0.5px solid #ebebeb' }}>
+      <div id="how" style={{ padding: `${sectionPadY}px ${px}px`, background: '#fff', borderTop: '0.5px solid #ebebeb' }}>
         <div style={{ maxWidth: 920, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
-            <h2 style={{ fontSize: 30, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', margin: '0 0 12px' }}>Three steps, then never lose a fix again</h2>
+            <h2 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', margin: '0 0 12px' }}>Three steps, then never lose a fix again</h2>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 28 }}>
             {[
@@ -924,10 +943,10 @@ function LandingPage({ onLogin, onSignUp }) {
       </div>
 
       {/* About / contact */}
-      <div id="about" style={{ padding: '76px 36px', background: '#f9f9f9', borderTop: '0.5px solid #ebebeb' }}>
+      <div id="about" style={{ padding: `${sectionPadY}px ${px}px`, background: '#f9f9f9', borderTop: '0.5px solid #ebebeb' }}>
         <div style={{ maxWidth: 720, margin: '0 auto', textAlign: 'center' }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: avatarColor('akash'), color: '#fff', fontSize: 26, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>A</div>
-          <h2 style={{ fontSize: 26, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', margin: '0 0 14px' }}>Built by an engineer who lived the problem</h2>
+          <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', margin: '0 0 14px' }}>Built by an engineer who lived the problem</h2>
           <p style={{ fontSize: 15, color: '#555', lineHeight: 1.7, margin: '0 0 12px' }}>
             I'm <strong>Akash Biyani</strong>, a hardware / RTL engineer at RPTU. I got tired of solving the same Vivado and Synopsys errors month after month and digging through scattered Excel sheets to remember the fix. ErrorLog is the tool I wished I had — a real, shared memory for EDA errors.
           </p>
@@ -948,8 +967,8 @@ function LandingPage({ onLogin, onSignUp }) {
       </div>
 
       {/* CTA band */}
-      <div style={{ padding: '64px 36px', background: '#111', textAlign: 'center' }}>
-        <h2 style={{ fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', margin: '0 0 12px' }}>Start your error knowledge base today</h2>
+      <div style={{ padding: `${isMobile ? 48 : 64}px ${px}px`, background: '#111', textAlign: 'center' }}>
+        <h2 style={{ fontSize: isMobile ? 23 : 28, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', margin: '0 0 12px' }}>Start your error knowledge base today</h2>
         <p style={{ fontSize: 15, color: '#aaa', margin: '0 0 26px', lineHeight: 1.6 }}>Free to use. No setup. Just paste your first error.</p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={onSignUp}
@@ -1117,6 +1136,10 @@ function ImportLogModal({ projects, activeProj, onClose, onImport }) {
 }
 
 export default function App() {
+  // ── Responsive ──
+  const { isMobile } = useViewport();
+  const [mobileSidebar, setMobileSidebar] = useState(false);
+
   // ── Auth ──
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -1362,6 +1385,10 @@ export default function App() {
 
   const detail = detailId ? errors.find(e => e.id === detailId) : null;
 
+  // On mobile the sidebar is an off-canvas drawer that always shows the full
+  // (expanded) content; on desktop it honors the user's collapse preference.
+  const collapsed = isMobile ? false : sidebarCollapsed;
+
   // ── Auth gates ──
   if (authLoading) return (
     <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-tertiary, #f5f5f5)', color: '#999', fontSize: 14, fontFamily: 'system-ui' }}>
@@ -1402,9 +1429,20 @@ export default function App() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
       {/* ── SIDEBAR ── */}
-      <div style={{ width: sidebarCollapsed ? 44 : 220, minWidth: sidebarCollapsed ? 44 : 220, background: 'var(--color-background-primary)', borderRight: '0.5px solid var(--color-border-tertiary)', display: 'flex', flexDirection: 'column', overflowY: 'auto', transition: 'width 0.2s, min-width 0.2s', overflow: 'hidden' }}>
+      {isMobile && mobileSidebar && (
+        <div onClick={() => setMobileSidebar(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 69 }} />
+      )}
+      <div style={{
+        width: collapsed ? 44 : (isMobile ? 248 : 220), minWidth: collapsed ? 44 : (isMobile ? 248 : 220),
+        background: 'var(--color-background-primary)', borderRight: '0.5px solid var(--color-border-tertiary)',
+        display: 'flex', flexDirection: 'column', overflowY: 'auto', overflowX: 'hidden',
+        ...(isMobile
+          ? { position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 70, transform: mobileSidebar ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.25s ease', boxShadow: mobileSidebar ? '0 0 50px rgba(0,0,0,0.35)' : 'none' }
+          : { transition: 'width 0.2s, min-width 0.2s' }),
+      }}>
 
-        {sidebarCollapsed ? (
+        {collapsed ? (
           /* ── COLLAPSED ── */
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
             <div style={{ padding: '14px 0 12px', borderBottom: '0.5px solid var(--color-border-tertiary)', width: '100%', display: 'flex', justifyContent: 'center' }}>
@@ -1417,7 +1455,7 @@ export default function App() {
             </div>
             <div style={{ padding: '10px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flex: 1 }}>
               {projects.map(p => (
-                <div key={p.id} onClick={() => { setActiveProj(p.id); setDetailId(null); setFilter('all'); setSearch(''); setCategoryFilter(null); }}
+                <div key={p.id} onClick={() => { setActiveProj(p.id); setDetailId(null); setFilter('all'); setSearch(''); setCategoryFilter(null); setMobileSidebar(false); }}
                   title={p.name}
                   style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, cursor: 'pointer', border: p.id === activeProj ? '2px solid var(--color-text-primary)' : '2px solid transparent', boxSizing: 'border-box' }} />
               ))}
@@ -1453,7 +1491,7 @@ export default function App() {
                 </svg>
                 <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text-primary)' }}>ErrorLog</span>
               </div>
-              <button onClick={() => setSidebarCollapsed(true)} title="Collapse sidebar"
+              <button onClick={() => isMobile ? setMobileSidebar(false) : setSidebarCollapsed(true)} title={isMobile ? 'Close menu' : 'Collapse sidebar'}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', padding: '4px 5px', borderRadius: 5, display: 'flex', flexDirection: 'column', gap: 3.5, alignItems: 'center' }}>
                 <span style={{ display: 'block', width: 14, height: 1.8, borderRadius: 1, background: 'currentColor' }} />
                 <span style={{ display: 'block', width: 14, height: 1.8, borderRadius: 1, background: 'currentColor' }} />
@@ -1467,7 +1505,7 @@ export default function App() {
               {projects.map(p => {
                 const pOpen = errors.filter(e => e.projId === p.id && !e.resolved).length;
                 return (
-                  <div key={p.id} onClick={() => { setActiveProj(p.id); setDetailId(null); setFilter('all'); setSearch(''); setCategoryFilter(null); }}
+                  <div key={p.id} onClick={() => { setActiveProj(p.id); setDetailId(null); setFilter('all'); setSearch(''); setCategoryFilter(null); setMobileSidebar(false); }}
                     className="sl-h"
                     style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 7, margin: '1px 4px', cursor: 'pointer', fontSize: 13, background: p.id === activeProj ? 'var(--color-background-secondary)' : 'transparent', color: p.id === activeProj ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', fontWeight: p.id === activeProj ? 500 : 400 }}>
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, minWidth: 8 }} />
@@ -1478,7 +1516,7 @@ export default function App() {
                   </div>
                 );
               })}
-              <div onClick={() => { setShowNewProj(true); setNewProjName(''); setNewProjColor(PROJ_COLORS[0]); }}
+              <div onClick={() => { setShowNewProj(true); setNewProjName(''); setNewProjColor(PROJ_COLORS[0]); setMobileSidebar(false); }}
                 className="sl-h"
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 7, margin: '2px 4px', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-tertiary)' }}>
                 <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> New project
@@ -1557,7 +1595,7 @@ export default function App() {
       </div>
 
       {/* ── MAIN ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', marginRight: detail ? 390 : 0, transition: 'margin-right 0.2s' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', marginRight: detail && !isMobile ? 390 : 0, transition: 'margin-right 0.2s', minWidth: 0 }}>
         {projects.length === 0 && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: 'var(--color-text-tertiary)', padding: 40 }}>
             <div style={{ fontSize: 40 }}>◎</div>
@@ -1571,8 +1609,16 @@ export default function App() {
         )}
         {projects.length > 0 && (<>
           {/* Topbar */}
-          <div style={{ background: 'var(--color-background-primary)', borderBottom: '0.5px solid var(--color-border-tertiary)', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: activeP?.color }} />
+          <div style={{ background: 'var(--color-background-primary)', borderBottom: '0.5px solid var(--color-border-tertiary)', padding: isMobile ? '10px 14px' : '10px 20px', display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexWrap: 'wrap' }}>
+            {isMobile && (
+              <button onClick={() => setMobileSidebar(true)} title="Menu"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)', padding: '2px 6px 2px 0', display: 'flex', flexDirection: 'column', gap: 3.5, alignItems: 'center', flexShrink: 0 }}>
+                <span style={{ display: 'block', width: 18, height: 2, borderRadius: 1, background: 'currentColor' }} />
+                <span style={{ display: 'block', width: 18, height: 2, borderRadius: 1, background: 'currentColor' }} />
+                <span style={{ display: 'block', width: 18, height: 2, borderRadius: 1, background: 'currentColor' }} />
+              </button>
+            )}
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: activeP?.color, flexShrink: 0 }} />
             <span style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>{activeP?.name}</span>
             <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: '#FAECE7', color: '#993C1D', fontWeight: 500 }}>{openCount} open</span>
             <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: '#EAF3DE', color: '#3B6D11', fontWeight: 500 }}>{resolvedCount} resolved</span>
@@ -1668,7 +1714,7 @@ export default function App() {
 
       {/* ── DETAIL PANEL ── */}
       {detail && (
-        <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: 390, background: 'var(--color-background-primary)', borderLeft: '0.5px solid var(--color-border-tertiary)', zIndex: 40, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: isMobile ? '100%' : 390, maxWidth: '100vw', background: 'var(--color-background-primary)', borderLeft: '0.5px solid var(--color-border-tertiary)', zIndex: 40, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '14px 16px', borderBottom: '0.5px solid var(--color-border-tertiary)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 5, fontFamily: 'monospace', background: detail.resolved ? '#EAF3DE' : (SEV_COLOR[detail.severity]?.bg || '#FAECE7'), color: detail.resolved ? '#3B6D11' : (SEV_COLOR[detail.severity]?.text || '#993C1D') }}>{detail.code || '—'}</span>
             <span style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail.description.slice(0, 36)}{detail.description.length > 36 ? '…' : ''}</span>
